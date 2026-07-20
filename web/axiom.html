@@ -45,7 +45,7 @@
 <div class="hint" id="hint">drag to orbit · scroll to zoom · click to drop a colony</div>
 <div id="panel">
   <div class="brand"><h1>AXIOM</h1><span>artificial life</span></div>
-  <div class="sub">Particle-Lenia agents with metabolism. They cluster into cells, reproduce where they thrive, and starve where they crowd — so the population never settles.</div>
+  <div class="sub">Particle-Lenia agents. One growth function of the neighborhood field decides everything: where G(U) is positive they thrive and reproduce, where it is negative they die. Birth and death are the same rule.</div>
 
   <div class="stats">
     <div class="stat"><div class="n" id="sPop" style="color:var(--txt)">0</div><div class="t">alive</div></div>
@@ -57,16 +57,16 @@
   <div class="seg" id="dimseg"><button data-d="3" class="on">3D</button><button data-d="2">2D</button></div>
   <div class="row" style="margin-top:7px"><button id="play" class="primary">❚❚ Pause</button><button id="reset">↺ Restart</button></div>
 
-  <div class="glabel">Life &amp; metabolism</div>
-  <div class="slider"><div class="lab"><b>fertility (birth rate)</b><span class="v" id="fertV"></span></div><input id="fert" type="range" min="0" max="3" step="0.05"></div>
-  <div class="slider"><div class="lab"><b>metabolism (death rate)</b><span class="v" id="metaV"></span></div><input id="meta" type="range" min="0.1" max="2.5" step="0.05"></div>
-  <div class="slider"><div class="lab"><b>ideal crowding</b><span class="v" id="crowdV"></span></div><input id="crowd" type="range" min="3" max="26" step="1"></div>
+  <div class="glabel">Growth rule G(U) — birth &amp; death in one function</div>
+  <div class="slider"><div class="lab"><b>ideal field μ</b><span class="v" id="muV"></span></div><input id="mu" type="range" min="1.5" max="12" step="0.1"></div>
+  <div class="slider"><div class="lab"><b>tolerance σ</b><span class="v" id="sigV"></span></div><input id="sig" type="range" min="0.8" max="5" step="0.1"></div>
+  <div class="slider"><div class="lab"><b>vitality rate</b><span class="v" id="rateV"></span></div><input id="rate" type="range" min="0.3" max="3" step="0.05"></div>
   <div class="slider"><div class="lab"><b>reproduce at energy</b><span class="v" id="reproV"></span></div><input id="repro" type="range" min="1.2" max="6" step="0.1"></div>
   <div class="slider"><div class="lab"><b>carrying capacity</b><span class="v" id="capV"></span></div><input id="cap" type="range" min="800" max="7000" step="200"></div>
 
   <div class="glabel">Movement</div>
   <div class="slider"><div class="lab"><b>reach (kernel radius)</b><span class="v" id="reachV"></span></div><input id="reach" type="range" min="0.02" max="0.09" step="0.002"></div>
-  <div class="slider"><div class="lab"><b>cohesion</b><span class="v" id="cohV"></span></div><input id="coh" type="range" min="0" max="3" step="0.05"></div>
+  <div class="slider"><div class="lab"><b>field seeking</b><span class="v" id="cohV"></span></div><input id="coh" type="range" min="0" max="5" step="0.05"></div>
   <div class="slider"><div class="lab"><b>separation</b><span class="v" id="sepV"></span></div><input id="sep" type="range" min="0" max="6" step="0.1"></div>
   <div class="slider"><div class="lab"><b>speed</b><span class="v" id="spdV"></span></div><input id="spd" type="range" min="0.2" max="2.5" step="0.05"></div>
 
@@ -90,7 +90,7 @@ let px=new Float32Array(CAP_MAX),py=new Float32Array(CAP_MAX),pz=new Float32Arra
     vx=new Float32Array(CAP_MAX),vy=new Float32Array(CAP_MAX),vz=new Float32Array(CAP_MAX),
     en=new Float32Array(CAP_MAX),ag=new Float32Array(CAP_MAX);
 let N=0;
-const P={dims:3,fert:1.3,meta:0.9,crowd:9,repro:3.0,cap:6000,reach:0.06,coh:1.2,sep:2.6,spd:1.0,
+const P={dims:3,mu:4.0,sig:1.6,rate:0.5,repro:3.0,cap:6500,reach:0.06,coh:1.5,sep:2.6,spd:1.0,
   cmap:0,glow:1.4,playing:true,gen:0,peak:0};
 let births=0,deaths=0,bRate=0,dRate=0;
 
@@ -113,50 +113,43 @@ function rehash(){gridN=Math.max(3,Math.min(46,Math.floor(1/P.reach)));const nc=
     cells[(gz*gridN+gy)*gridN+gx].push(i);}}
 function wrapd(a){return a>0.5?a-1:(a<-0.5?a+1:a);}
 
+// The rule: a single Lenia growth function G(U)=2·bell(U,μ,σ)−1 of the local field U.
+// U>μ (crowded) or U<μ (sparse) both push G<0. The SAME G drives movement (toward the
+// favorable field) and life (G>0 accrues vitality → birth, G<0 drains it → death).
+function growth(U){return Math.tanh((P.mu-U)/P.sig);}  // +1 (birth) below μ, −1 (death) above
 function step(dt){
-  rehash();const R=P.reach,R2=R*R,rSep=R*0.45,pref=R*0.62,invg=gridN;
+  rehash();const R=P.reach,R2=R*R,rSep=R*0.42,pref=R*0.6;
   const is3=P.dims===3;
-  // forces + neighbor counts
-  const nbr=new Int16Array(N);
+  const fld=new Float32Array(N);
   for(let i=0;i<N;i++){
     const gx=gi(px[i]),gy=gi(py[i]),gz=is3?gi(pz[i]):0;
-    let fx=0,fy=0,fz=0,cnt=0;
+    let fx=0,fy=0,fz=0,U=0;
     for(let dz=(is3?-1:0);dz<=(is3?1:0);dz++)for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
       const cxi=(gx+dx+gridN)%gridN,cyi=(gy+dy+gridN)%gridN,czi=(gz+dz+gridN)%gridN;
       const bucket=cells[(czi*gridN+cyi)*gridN+cxi];
       for(let b=0;b<bucket.length;b++){const j=bucket[b];if(j===i)continue;
         let ex=wrapd(px[i]-px[j]),ey=wrapd(py[i]-py[j]),ez=is3?wrapd(pz[i]-pz[j]):0;
         const d2=ex*ex+ey*ey+ez*ez;if(d2>R2||d2<1e-9)continue;
-        const d=Math.sqrt(d2),inv=1/d;ex*=inv;ey*=inv;ez*=inv;cnt++;
-        // separation (repel) + cohesion (attract toward preferred distance)
-        let f=0;
-        if(d<rSep)f+=P.sep*(1-d/rSep);
-        const bell=Math.exp(-0.5*((d-pref)/(R*0.28))**2);
-        f-=P.coh*bell;
-        fx+=ex*f;fy+=ey*f;fz+=ez*f;}
+        const d=Math.sqrt(d2),inv=1/d;ex*=inv;ey*=inv;ez*=inv;
+        const bell=Math.exp(-0.5*((d-pref)/(R*0.3))**2);     // Lenia kernel (ring). U = field.
+        U+=bell;
+        let f=0; if(d<rSep)f+=P.sep*(1-d/rSep); f-=P.coh*bell;  // separate then cohere -> cells
+        fx+=ex*f;fy+=ey*f;fz+=ez*f;
+      }
     }
-    nbr[i]=cnt;
+    fld[i]=U;
     const damp=0.86;
     vx[i]=vx[i]*damp+fx*dt*P.spd;vy[i]=vy[i]*damp+fy*dt*P.spd;vz[i]=is3?vz[i]*damp+fz*dt*P.spd:0;
     const sp=Math.hypot(vx[i],vy[i],vz[i]);if(!isFinite(sp)){vx[i]=vy[i]=vz[i]=0;}else if(sp>0.45){const k=0.45/sp;vx[i]*=k;vy[i]*=k;vz[i]*=k;}
   }
-  // integrate + metabolism + birth/death (swap-remove)
-  const cr=P.crowd,crs=cr*0.55;
   let i=0;
   while(i<N){
     px[i]=wrap1(px[i]+vx[i]*dt);py[i]=wrap1(py[i]+vy[i]*dt);pz[i]=is3?wrap1(pz[i]+vz[i]*dt):.5;
     ag[i]+=dt;
-    // resource competition: food is shared with neighbors, so it thins as you crowd.
-    // Sparse agents reproduce, crowded ones starve -> the density self-limits with churn.
-    const nb=nbr[i];
-    en[i]+=(P.fert/(1.0+(0.9/cr)*nb) - P.meta)*dt;
+    en[i]+=growth(fld[i])*P.rate*dt;                         // birth AND death from the one rule
     if(!isFinite(en[i]))en[i]=0.5;
-    if(en[i]<0){ // die: swap-remove
-      N--;px[i]=px[N];py[i]=py[N];pz[i]=pz[N];vx[i]=vx[N];vy[i]=vy[N];vz[i]=vz[N];en[i]=en[N];ag[i]=ag[N];nbr[i]=nbr[N];deaths++;continue;
-    }
-    if(en[i]>P.repro && N<P.cap && Math.random()<0.9*dt){
-      en[i]*=0.5;spawn((px[i]+rnd(-.01,.01)+1)%1,(py[i]+rnd(-.01,.01)+1)%1,is3?(pz[i]+rnd(-.01,.01)+1)%1:.5,en[i]);births++;
-    }
+    if(en[i]<0){N--;px[i]=px[N];py[i]=py[N];pz[i]=pz[N];vx[i]=vx[N];vy[i]=vy[N];vz[i]=vz[N];en[i]=en[N];ag[i]=ag[N];fld[i]=fld[N];deaths++;continue;}
+    if(en[i]>P.repro && N<P.cap && Math.random()<0.35*dt){en[i]*=0.5;spawn(wrap1(px[i]+rnd(-.01,.01)),wrap1(py[i]+rnd(-.01,.01)),is3?wrap1(pz[i]+rnd(-.01,.01)):.5,en[i]);births++;}
     if(en[i]>6)en[i]=6;
     i++;
   }
@@ -236,7 +229,7 @@ addEventListener('resize',fitCanvas);
 function bind(id,key,fmt,after){const e=$(id);e.value=P[key];
   const lab=e.closest('.slider').querySelector('.v');lab.textContent=fmt(P[key]);
   e.addEventListener('input',ev=>{P[key]=+ev.target.value;lab.textContent=fmt(P[key]);if(after)after();});}
-bind('fert','fert',v=>v.toFixed(2));bind('meta','meta',v=>v.toFixed(2));bind('crowd','crowd',v=>v|0);
+bind('mu','mu',v=>v.toFixed(1));bind('sig','sig',v=>v.toFixed(1));bind('rate','rate',v=>v.toFixed(2));
 bind('repro','repro',v=>v.toFixed(1));bind('cap','cap',v=>v|0);bind('reach','reach',v=>v.toFixed(3));
 bind('coh','coh',v=>v.toFixed(2));bind('sep','sep',v=>v.toFixed(1));bind('spd','spd',v=>v.toFixed(2));bind('glow','glow',v=>v.toFixed(1));
 $('cmap').addEventListener('change',e=>P.cmap=+e.target.value);
