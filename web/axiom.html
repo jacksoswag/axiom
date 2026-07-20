@@ -3,34 +3,25 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-<title>AXIOM — live</title>
+<title>AXIOM — artificial life</title>
 <style>
-  :root{
-    --bg:#07080d; --panel:rgba(16,18,30,0.72); --stroke:rgba(255,255,255,0.10);
-    --txt:#e8ecff; --dim:#8b93b8; --accent:#6ea8ff; --accent2:#b98cff;
-    --s0:#ff5d73; --s1:#4dd6a8; --s2:#6ea8ff;
-    --glow:0 0 24px rgba(110,168,255,0.22);
-  }
+  :root{--bg:#05060a;--panel:rgba(15,17,28,0.74);--stroke:rgba(255,255,255,0.10);--txt:#e8ecff;--dim:#8991b6;--accent:#6ea8ff;--accent2:#b98cff;--live:#5dffa0;--die:#ff5d73;--glow:0 0 24px rgba(110,168,255,0.22);}
   *{box-sizing:border-box;margin:0;padding:0}
-  html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--txt);
-    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Inter",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
-  #gl{position:fixed;inset:0;width:100vw;height:100vh;display:block;cursor:crosshair}
-  #panel{position:fixed;top:16px;right:16px;width:312px;max-height:calc(100vh - 32px);overflow-y:auto;
-    background:var(--panel);backdrop-filter:blur(22px) saturate(1.4);-webkit-backdrop-filter:blur(22px) saturate(1.4);
-    border:1px solid var(--stroke);border-radius:18px;padding:15px 15px 18px;
-    box-shadow:0 18px 60px rgba(0,0,0,0.55),var(--glow);transition:transform .35s cubic-bezier(.2,.9,.3,1),opacity .3s}
-  #panel.hidden{transform:translateX(120%);opacity:0}
+  html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Inter",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  #gl{position:fixed;inset:0;width:100vw;height:100vh;display:block;cursor:grab}
+  #gl:active{cursor:grabbing}
+  #panel{position:fixed;top:16px;right:16px;width:308px;max-height:calc(100vh - 32px);overflow-y:auto;background:var(--panel);backdrop-filter:blur(22px) saturate(1.4);-webkit-backdrop-filter:blur(22px) saturate(1.4);border:1px solid var(--stroke);border-radius:18px;padding:15px 15px 18px;box-shadow:0 18px 60px rgba(0,0,0,.55),var(--glow)}
   #panel::-webkit-scrollbar{width:7px}#panel::-webkit-scrollbar-thumb{background:rgba(255,255,255,.13);border-radius:8px}
   .brand{display:flex;align-items:baseline;gap:8px}
   .brand h1{font-size:19px;font-weight:700;letter-spacing:.15em;background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent}
   .brand span{font-size:10px;color:var(--dim);letter-spacing:.04em}
   .sub{font-size:10.5px;color:var(--dim);margin:3px 0 12px;line-height:1.5}
-  .glabel{font-size:9.5px;text-transform:uppercase;letter-spacing:.13em;color:var(--dim);margin:13px 0 7px;font-weight:600;display:flex;justify-content:space-between}
+  .glabel{font-size:9.5px;text-transform:uppercase;letter-spacing:.13em;color:var(--dim);margin:14px 0 7px;font-weight:600}
   .row{display:flex;gap:7px;margin-bottom:7px}
   button,select{font-family:inherit;color:var(--txt);background:rgba(255,255,255,.05);border:1px solid var(--stroke);border-radius:11px;padding:8px 10px;font-size:12px;cursor:pointer;transition:background .16s,border-color .16s,transform .07s;flex:1;min-width:0}
   button:hover,select:hover{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.2)}
   button:active{transform:scale(.96)}
-  button.primary,button.on{background:linear-gradient(120deg,rgba(110,168,255,.92),rgba(185,140,255,.92));border-color:transparent;color:#0a0b12;font-weight:650}
+  button.primary{background:linear-gradient(120deg,rgba(110,168,255,.92),rgba(185,140,255,.92));border-color:transparent;color:#0a0b12;font-weight:650}
   select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--dim) 50%),linear-gradient(135deg,var(--dim) 50%,transparent 50%);background-position:calc(100% - 14px) 15px,calc(100% - 9px) 15px;background-size:5px 5px;background-repeat:no-repeat;padding-right:24px}
   select option{background:#12141f}
   .seg{display:flex;background:rgba(255,255,255,.05);border:1px solid var(--stroke);border-radius:11px;overflow:hidden}
@@ -41,339 +32,230 @@
   .slider .lab b{color:var(--txt);font-weight:600}.slider .lab .v{color:var(--accent);font-variant-numeric:tabular-nums;font-weight:600}
   input[type=range]{-webkit-appearance:none;width:100%;height:5px;border-radius:5px;background:rgba(255,255,255,.12);outline:none}
   input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 0 0 4px rgba(110,168,255,.22),0 2px 6px rgba(0,0,0,.4);cursor:pointer}
-  .matrix{display:grid;grid-template-columns:20px repeat(3,1fr);gap:5px;align-items:center;margin-bottom:6px}
-  .matrix .hd{font-size:10px;font-weight:700;text-align:center}
-  .matrix .rl{font-size:10px;font-weight:700}
-  .cell{position:relative}
-  .cell input{-webkit-appearance:none;width:100%;height:26px;border-radius:8px;background:rgba(255,255,255,.06);outline:none;border:1px solid var(--stroke)}
-  .cell input::-webkit-slider-thumb{-webkit-appearance:none;width:4px;height:24px;border-radius:3px;background:var(--accent);cursor:pointer}
-  .cell .cv{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:10px;pointer-events:none;color:var(--txt);font-variant-numeric:tabular-nums;text-shadow:0 1px 2px #000}
-  .swatch{width:9px;height:9px;border-radius:50%;display:inline-block;vertical-align:middle;margin-right:5px}
-  .mnote{font-size:9.5px;color:var(--dim);line-height:1.45;margin-bottom:2px}
-  .hud{position:fixed;left:16px;bottom:14px;font-size:11px;color:var(--dim);background:var(--panel);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid var(--stroke);border-radius:12px;padding:8px 13px;display:flex;gap:13px;font-variant-numeric:tabular-nums}
-  .hud b{color:var(--txt);font-weight:600}.hud .dot{color:var(--accent)}
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:4px}
+  .stat{background:rgba(255,255,255,.04);border:1px solid var(--stroke);border-radius:11px;padding:8px 6px;text-align:center}
+  .stat .n{font-size:17px;font-weight:700;font-variant-numeric:tabular-nums}.stat .t{font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;margin-top:1px}
+  .hud{position:fixed;left:16px;bottom:14px;font-size:11px;color:var(--dim);background:var(--panel);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid var(--stroke);border-radius:12px;padding:8px 13px;display:flex;gap:14px;font-variant-numeric:tabular-nums}
+  .hud b{color:var(--txt);font-weight:600}
   .hint{position:fixed;left:16px;top:14px;font-size:11px;color:var(--dim);background:var(--panel);border:1px solid var(--stroke);border-radius:11px;padding:6px 12px;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);transition:opacity .5s}
 </style>
 </head>
 <body>
 <canvas id="gl"></canvas>
-<div class="hint" id="hint">drag to seed (2D) or orbit (3D) · scroll to zoom · every knob is live</div>
+<div class="hint" id="hint">drag to orbit · scroll to zoom · click to drop a colony</div>
 <div id="panel">
-  <div class="brand"><h1>AXIOM</h1><span>live · multi-species · webgl</span></div>
-  <div class="sub">Cellular automata as interacting modules. Asymmetric coupling is what keeps the organisms moving instead of settling.</div>
+  <div class="brand"><h1>AXIOM</h1><span>artificial life</span></div>
+  <div class="sub">Particle-Lenia agents with metabolism. They cluster into cells, reproduce where they thrive, and starve where they crowd — so the population never settles.</div>
 
-  <div class="glabel">Preset</div>
-  <select id="preset"></select>
-
-  <div class="glabel">View</div>
-  <div class="seg" id="viewseg"><button data-v="2d" class="on">2D field</button><button data-v="3d">3D volume</button></div>
-
-  <div class="glabel">Transport</div>
-  <div class="row"><button id="play" class="primary">❚❚ Pause</button><button id="reset">↺ Reset</button><button id="rand">✦ Seed</button></div>
-
-  <div id="msblock">
-    <div class="glabel">Species interaction matrix <span id="mhint">row feels column</span></div>
-    <div class="mnote">how strongly each species is drawn to (+) or repelled by (−) the others. Off-diagonal asymmetry drives perpetual motion; zero = ignore.</div>
-    <div class="matrix" id="matrix"></div>
-
-    <div class="glabel">Per-species growth</div>
-    <div id="species"></div>
-    <div class="slider"><div class="lab"><b>agitation (noise)</b><span class="v" id="noiseV"></span></div><input type="range" id="noise" min="0" max="0.06" step="0.001"></div>
+  <div class="stats">
+    <div class="stat"><div class="n" id="sPop" style="color:var(--txt)">0</div><div class="t">alive</div></div>
+    <div class="stat"><div class="n" id="sBirth" style="color:var(--live)">0</div><div class="t">births/s</div></div>
+    <div class="stat"><div class="n" id="sDeath" style="color:var(--die)">0</div><div class="t">deaths/s</div></div>
   </div>
 
-  <div id="gsblock" style="display:none">
-    <div class="glabel">Reaction-diffusion</div>
-    <div class="slider"><div class="lab"><b>feed</b><span class="v" id="feedV"></span></div><input type="range" id="feed" min="0.01" max="0.09" step="0.0005"></div>
-    <div class="slider"><div class="lab"><b>kill</b><span class="v" id="killV"></span></div><input type="range" id="kill" min="0.04" max="0.075" step="0.0005"></div>
-  </div>
+  <div class="glabel">World</div>
+  <div class="seg" id="dimseg"><button data-d="3" class="on">3D</button><button data-d="2">2D</button></div>
+  <div class="row" style="margin-top:7px"><button id="play" class="primary">❚❚ Pause</button><button id="reset">↺ Restart</button></div>
 
-  <div class="glabel">Kernel & time</div>
-  <div class="slider"><div class="lab"><b>kernel radius</b><span class="v" id="radiusV"></span></div><input type="range" id="radius" min="3" max="14" step="1"></div>
-  <div class="slider"><div class="lab"><b>timestep dt</b><span class="v" id="dtV"></span></div><input type="range" id="dt" min="0.02" max="0.5" step="0.005"></div>
-  <div class="slider"><div class="lab"><b>steps / frame</b><span class="v" id="speedV"></span></div><input type="range" id="speed" min="1" max="8" step="1"></div>
+  <div class="glabel">Life &amp; metabolism</div>
+  <div class="slider"><div class="lab"><b>fertility (birth rate)</b><span class="v" id="fertV"></span></div><input id="fert" type="range" min="0" max="3" step="0.05"></div>
+  <div class="slider"><div class="lab"><b>metabolism (death rate)</b><span class="v" id="metaV"></span></div><input id="meta" type="range" min="0.1" max="2.5" step="0.05"></div>
+  <div class="slider"><div class="lab"><b>ideal crowding</b><span class="v" id="crowdV"></span></div><input id="crowd" type="range" min="3" max="26" step="1"></div>
+  <div class="slider"><div class="lab"><b>reproduce at energy</b><span class="v" id="reproV"></span></div><input id="repro" type="range" min="1.2" max="6" step="0.1"></div>
+  <div class="slider"><div class="lab"><b>carrying capacity</b><span class="v" id="capV"></span></div><input id="cap" type="range" min="800" max="7000" step="200"></div>
 
-  <div id="dimblock" style="display:none">
-    <div class="glabel">Third dimension</div>
-    <div class="mnote">slide from a flat sheet up to a full volume — the automaton runs in true 3D.</div>
-    <div class="slider"><div class="lab"><b>depth (Z layers)</b><span class="v" id="depthV"></span></div><input type="range" id="depth" min="1" max="64" step="1"></div>
-    <div class="slider"><div class="lab"><b>density</b><span class="v" id="densV"></span></div><input type="range" id="dens" min="0.3" max="4" step="0.1"></div>
-  </div>
+  <div class="glabel">Movement</div>
+  <div class="slider"><div class="lab"><b>reach (kernel radius)</b><span class="v" id="reachV"></span></div><input id="reach" type="range" min="0.02" max="0.09" step="0.002"></div>
+  <div class="slider"><div class="lab"><b>cohesion</b><span class="v" id="cohV"></span></div><input id="coh" type="range" min="0" max="3" step="0.05"></div>
+  <div class="slider"><div class="lab"><b>separation</b><span class="v" id="sepV"></span></div><input id="sep" type="range" min="0" max="6" step="0.1"></div>
+  <div class="slider"><div class="lab"><b>speed</b><span class="v" id="spdV"></span></div><input id="spd" type="range" min="0.2" max="2.5" step="0.05"></div>
 
   <div class="glabel">Look</div>
-  <div class="row"><select id="cmap">
-    <option value="0">Turbo</option><option value="1">Viridis</option><option value="2">Magma</option><option value="3">Inferno</option><option value="4">Plasma</option><option value="5">Ice</option><option value="6">Mono</option></select>
-  <select id="dmode"><option value="0">Species RGB</option><option value="1">Colormap</option></select></div>
-  <div class="slider"><div class="lab"><b>resolution</b><span class="v" id="resV"></span></div><input type="range" id="res" min="192" max="640" step="64"></div>
+  <div class="row"><select id="cmap"><option value="0">Energy (turbo)</option><option value="3">Ember</option><option value="5">Ice</option><option value="1">Viridis</option></select></div>
+  <div class="slider"><div class="lab"><b>particle glow</b><span class="v" id="glowV"></span></div><input id="glow" type="range" min="0.4" max="3" step="0.1"></div>
 </div>
-<div class="hud">
-  <span><span class="dot">●</span> <b id="hudname">rps</b></span>
-  <span>step <b id="hudstep">0</b></span>
-  <span><b id="hudfps">60</b> fps</span>
-  <span><b id="hudres">—</b></span>
-</div>
+<div class="hud"><span>gen <b id="hGen">0</b></span><span>peak <b id="hPeak">0</b></span><span><b id="hFps">60</b> fps</span><span><b id="hDim">3D</b></span></div>
 <script>
 "use strict";
 const cv=document.getElementById('gl');
-const gl=cv.getContext('webgl2',{antialias:false,premultipliedAlpha:false,powerPreference:'high-performance'});
+const gl=cv.getContext('webgl2',{antialias:true,premultipliedAlpha:false,alpha:false,powerPreference:'high-performance'});
 if(!gl){document.body.innerHTML='<p style="padding:40px;color:#e8ecff;font-family:system-ui">WebGL2 unavailable.</p>';throw 0;}
-gl.getExtension('EXT_color_buffer_float');
+const $=id=>document.getElementById(id);
 const VW=()=>cv.clientWidth||document.documentElement.clientWidth||innerWidth||1600;
 const VH=()=>cv.clientHeight||document.documentElement.clientHeight||innerHeight||900;
 
-function sh(t,s){const o=gl.createShader(t);gl.shaderSource(o,s);gl.compileShader(o);
-  if(!gl.getShaderParameter(o,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(o)+'\n'+s);return o;}
-function prog(v,f){const p=gl.createProgram();gl.attachShader(p,sh(gl.VERTEX_SHADER,v));gl.attachShader(p,sh(gl.FRAGMENT_SHADER,f));
-  gl.linkProgram(p);if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(p));return p;}
-const U=(p,n)=>gl.getUniformLocation(p,n);
-const VS=`#version 300 es
-out vec2 uv; void main(){vec2 p=vec2(float((gl_VertexID&1)<<2)-1.0,float((gl_VertexID&2)<<1)-1.0);uv=p*0.5+0.5;gl_Position=vec4(p,0,1);}`;
+// ---------- particle life sim ----------
+const CAP_MAX=7000;
+let px=new Float32Array(CAP_MAX),py=new Float32Array(CAP_MAX),pz=new Float32Array(CAP_MAX),
+    vx=new Float32Array(CAP_MAX),vy=new Float32Array(CAP_MAX),vz=new Float32Array(CAP_MAX),
+    en=new Float32Array(CAP_MAX),ag=new Float32Array(CAP_MAX);
+let N=0;
+const P={dims:3,fert:1.3,meta:0.9,crowd:9,repro:3.0,cap:6000,reach:0.06,coh:1.2,sep:2.6,spd:1.0,
+  cmap:0,glow:1.4,playing:true,gen:0,peak:0};
+let births=0,deaths=0,bRate=0,dRate=0;
 
-const CM=`vec3 cmap(int m,float t){t=clamp(t,0.0,1.0);
+function rnd(a,b){return a+Math.random()*(b-a);}
+const wrap1=v=>{v-=Math.floor(v);return v>=1?0:v;};   // always [0,1)
+function spawn(x,y,z,e){ if(N>=CAP_MAX)return; px[N]=x;py[N]=y;pz[N]=z;vx[N]=rnd(-.1,.1);vy[N]=rnd(-.1,.1);vz[N]=P.dims===3?rnd(-.1,.1):0;en[N]=e;ag[N]=0;N++; }
+function seed(){N=0;P.gen++;P.peak=0;const clusters=6;
+  for(let c=0;c<clusters;c++){const cx=rnd(.2,.8),cy=rnd(.2,.8),cz=P.dims===3?rnd(.2,.8):.5;
+    const k=90+((Math.random()*80)|0);
+    for(let i=0;i<k;i++){const r=P.reach*rnd(0,2.2),th=rnd(0,6.283),ph=rnd(0,3.1416);
+      spawn((cx+r*Math.cos(th)*Math.sin(ph)+1)%1,(cy+r*Math.sin(th)*Math.sin(ph)+1)%1,P.dims===3?(cz+r*Math.cos(ph)+1)%1:.5,rnd(1.5,3));}}
+}
+
+// spatial hash
+let gridN=1,cells=null;
+const gi=v=>{let g=(wrap1(v)*gridN)|0;return g<0?0:(g>=gridN?gridN-1:g);};
+function rehash(){gridN=Math.max(3,Math.min(46,Math.floor(1/P.reach)));const nc=gridN*gridN*(P.dims===3?gridN:1);
+  if(!cells||cells.length!==nc){cells=new Array(nc);for(let i=0;i<nc;i++)cells[i]=[];}else for(let i=0;i<nc;i++)cells[i].length=0;
+  for(let i=0;i<N;i++){const gx=gi(px[i]),gy=gi(py[i]),gz=P.dims===3?gi(pz[i]):0;
+    cells[(gz*gridN+gy)*gridN+gx].push(i);}}
+function wrapd(a){return a>0.5?a-1:(a<-0.5?a+1:a);}
+
+function step(dt){
+  rehash();const R=P.reach,R2=R*R,rSep=R*0.45,pref=R*0.62,invg=gridN;
+  const is3=P.dims===3;
+  // forces + neighbor counts
+  const nbr=new Int16Array(N);
+  for(let i=0;i<N;i++){
+    const gx=gi(px[i]),gy=gi(py[i]),gz=is3?gi(pz[i]):0;
+    let fx=0,fy=0,fz=0,cnt=0;
+    for(let dz=(is3?-1:0);dz<=(is3?1:0);dz++)for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+      const cxi=(gx+dx+gridN)%gridN,cyi=(gy+dy+gridN)%gridN,czi=(gz+dz+gridN)%gridN;
+      const bucket=cells[(czi*gridN+cyi)*gridN+cxi];
+      for(let b=0;b<bucket.length;b++){const j=bucket[b];if(j===i)continue;
+        let ex=wrapd(px[i]-px[j]),ey=wrapd(py[i]-py[j]),ez=is3?wrapd(pz[i]-pz[j]):0;
+        const d2=ex*ex+ey*ey+ez*ez;if(d2>R2||d2<1e-9)continue;
+        const d=Math.sqrt(d2),inv=1/d;ex*=inv;ey*=inv;ez*=inv;cnt++;
+        // separation (repel) + cohesion (attract toward preferred distance)
+        let f=0;
+        if(d<rSep)f+=P.sep*(1-d/rSep);
+        const bell=Math.exp(-0.5*((d-pref)/(R*0.28))**2);
+        f-=P.coh*bell;
+        fx+=ex*f;fy+=ey*f;fz+=ez*f;}
+    }
+    nbr[i]=cnt;
+    const damp=0.86;
+    vx[i]=vx[i]*damp+fx*dt*P.spd;vy[i]=vy[i]*damp+fy*dt*P.spd;vz[i]=is3?vz[i]*damp+fz*dt*P.spd:0;
+    const sp=Math.hypot(vx[i],vy[i],vz[i]);if(!isFinite(sp)){vx[i]=vy[i]=vz[i]=0;}else if(sp>0.45){const k=0.45/sp;vx[i]*=k;vy[i]*=k;vz[i]*=k;}
+  }
+  // integrate + metabolism + birth/death (swap-remove)
+  const cr=P.crowd,crs=cr*0.55;
+  let i=0;
+  while(i<N){
+    px[i]=wrap1(px[i]+vx[i]*dt);py[i]=wrap1(py[i]+vy[i]*dt);pz[i]=is3?wrap1(pz[i]+vz[i]*dt):.5;
+    ag[i]+=dt;
+    // resource competition: food is shared with neighbors, so it thins as you crowd.
+    // Sparse agents reproduce, crowded ones starve -> the density self-limits with churn.
+    const nb=nbr[i];
+    en[i]+=(P.fert/(1.0+(0.9/cr)*nb) - P.meta)*dt;
+    if(!isFinite(en[i]))en[i]=0.5;
+    if(en[i]<0){ // die: swap-remove
+      N--;px[i]=px[N];py[i]=py[N];pz[i]=pz[N];vx[i]=vx[N];vy[i]=vy[N];vz[i]=vz[N];en[i]=en[N];ag[i]=ag[N];nbr[i]=nbr[N];deaths++;continue;
+    }
+    if(en[i]>P.repro && N<P.cap && Math.random()<0.9*dt){
+      en[i]*=0.5;spawn((px[i]+rnd(-.01,.01)+1)%1,(py[i]+rnd(-.01,.01)+1)%1,is3?(pz[i]+rnd(-.01,.01)+1)%1:.5,en[i]);births++;
+    }
+    if(en[i]>6)en[i]=6;
+    i++;
+  }
+  if(N>P.peak)P.peak=N;
+}
+
+// ---------- render ----------
+const VS=`#version 300 es
+layout(location=0) in vec3 pos; layout(location=1) in float energy; layout(location=2) in float age;
+uniform mat4 mvp; uniform float psize,is3; out float vE; out float vDepth; out float vAge;
+void main(){ vec3 p=pos*2.0-1.0; gl_Position=mvp*vec4(p,1.0);
+  float w=max(gl_Position.w,0.15); vDepth=(is3>0.5)?clamp(1.6/w,0.3,2.2):1.0;
+  gl_PointSize=psize*(0.55+energy*0.5)*vDepth; vE=energy; vAge=age; }`;
+const FS=`#version 300 es
+precision highp float; in float vE; in float vDepth; in float vAge; out vec4 o; uniform int cmapId; uniform float glow;
+vec3 cmap(int m,float t){t=clamp(t,0.0,1.0);
   if(m==0){vec3 a=vec3(0.136,0.091,0.107),b=vec3(4.62,2.43,12.23),c=vec3(-42.66,4.78,-89.9),d=vec3(132.1,-14.2,223.0),e=vec3(-152.9,4.78,-238.2),f=vec3(59.3,2.83,83.4);return clamp(a+t*(b+t*(c+t*(d+t*(e+t*f)))),0.0,1.0);}
   if(m==1){return clamp(vec3(0.28+0.1*t-0.9*t*t+1.6*t*t*t,0.02+1.7*t-0.9*t*t,0.33+0.6*t-2.6*t*t+2.0*t*t*t),0.0,1.0);}
-  if(m==2){return clamp(vec3(pow(t,0.9),t*t*0.75,0.35*t+0.4*t*t*t)*vec3(1.05,0.75,1.1)+vec3(0.0,0.0,0.05),0.0,1.0);}
-  if(m==3){return clamp(vec3(pow(t,0.7),t*t*t*0.9+0.05*t,t*t*t*t*0.6),0.0,1.0);}
-  if(m==4){return clamp(vec3(0.05+1.2*t,0.02+0.3*t+0.4*t*t*t,0.55+0.5*t-1.2*t*t+0.4*t*t*t),0.0,1.0);}
-  if(m==5){return clamp(vec3(0.05+0.25*t+0.4*t*t,0.1+0.7*t,0.25+0.75*t),0.0,1.0);}
-  return vec3(t);}`;
+  if(m==3){return clamp(vec3(pow(t,0.6),t*t*0.85+0.05*t,t*t*t*t*0.5),0.0,1.0);}
+  return clamp(vec3(0.05+0.25*t+0.4*t*t,0.1+0.7*t,0.25+0.75*t),0.0,1.0);}
+void main(){ vec2 c=gl_PointCoord*2.0-1.0; float r=dot(c,c); if(r>1.0)discard;
+  float a=exp(-r*2.4);
+  float t=clamp(vE/4.0,0.0,1.0);
+  vec3 col=cmap(cmapId,t);
+  if(vAge<0.6)col=mix(col,vec3(1.0),1.0-vAge/0.6);         // newborns flash white
+  col*=(0.55+vDepth*0.5)*glow;
+  o=vec4(col*a,a); }`;
+function sh(t,s){const o=gl.createShader(t);gl.shaderSource(o,s);gl.compileShader(o);if(!gl.getShaderParameter(o,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(o));return o;}
+const prog=gl.createProgram();gl.attachShader(prog,sh(gl.VERTEX_SHADER,VS));gl.attachShader(prog,sh(gl.FRAGMENT_SHADER,FS));gl.linkProgram(prog);
+if(!gl.getProgramParameter(prog,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(prog));
+const vbo=gl.createBuffer(),vaoP=gl.createVertexArray();
+gl.bindVertexArray(vaoP);gl.bindBuffer(gl.ARRAY_BUFFER,vbo);
+gl.bufferData(gl.ARRAY_BUFFER,CAP_MAX*5*4,gl.DYNAMIC_DRAW);
+gl.enableVertexAttribArray(0);gl.vertexAttribPointer(0,3,gl.FLOAT,false,20,0);
+gl.enableVertexAttribArray(1);gl.vertexAttribPointer(1,1,gl.FLOAT,false,20,12);
+gl.enableVertexAttribArray(2);gl.vertexAttribPointer(2,1,gl.FLOAT,false,20,16);
+const packed=new Float32Array(CAP_MAX*5);
 
-// multi-species Lenia
-const FS_MS=`#version 300 es
-precision highp float; in vec2 uv; out vec4 o;
-uniform sampler2D st; uniform vec2 texel; uniform float radius,dt,noise,tick; uniform vec3 mu,sig; uniform float M[9];
-float bell(float x,float m,float s){float d=(x-m)/s;return exp(-0.5*d*d);}
-float hash(vec2 p){p=fract(p*vec2(233.34,851.73));p+=dot(p,p+23.45);return fract(p.x*p.y);}
-void main(){const int R=14;vec3 a=vec3(0.0);float ws=0.0;
-  for(int dy=-R;dy<=R;dy++)for(int dx=-R;dx<=R;dx++){float d=length(vec2(float(dx),float(dy)));if(d>radius)continue;
-    float w=bell(d/radius,0.5,0.15);a+=texture(st,uv+vec2(float(dx),float(dy))*texel).rgb*w;ws+=w;}
-  vec3 c=a/max(ws,1e-9);
-  vec3 Uv=vec3(M[0]*c.r+M[1]*c.g+M[2]*c.b, M[3]*c.r+M[4]*c.g+M[5]*c.b, M[6]*c.r+M[7]*c.g+M[8]*c.b);
-  vec3 G=vec3(2.0*bell(Uv.r,mu.r,sig.r)-1.0,2.0*bell(Uv.g,mu.g,sig.g)-1.0,2.0*bell(Uv.b,mu.b,sig.b)-1.0);
-  vec3 A=texture(st,uv).rgb;
-  vec3 n=vec3(hash(uv+tick),hash(uv+tick+3.7),hash(uv+tick+9.1))-0.5;
-  o=vec4(clamp(A+dt*G+noise*n,0.0,1.0),1.0);}`;
+// matrices
+function persp(f,a,n,fr){const t=1/Math.tan(f/2);return[t/a,0,0,0,0,t,0,0,0,0,(fr+n)/(n-fr),-1,0,0,2*fr*n/(n-fr),0];}
+function ortho(s,a){return[1/(s*a),0,0,0,0,1/s,0,0,0,0,-0.5,0,0,0,0,1];}
+function mul(a,b){const o=new Array(16);for(let i=0;i<4;i++)for(let j=0;j<4;j++){let s=0;for(let k=0;k<4;k++)s+=a[k*4+j]*b[i*4+k];o[i*4+j]=s;}return o;}
+function look(e,c,u){const z=nrm(sub(e,c)),x=nrm(cross(u,z)),y=cross(z,x);return[x[0],y[0],z[0],0,x[1],y[1],z[1],0,x[2],y[2],z[2],0,-dot(x,e),-dot(y,e),-dot(z,e),1];}
+const sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]],cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2],nrm=a=>{const l=Math.hypot(a[0],a[1],a[2])||1;return[a[0]/l,a[1]/l,a[2]/l];};
+let cam={az:0.7,el:0.4,dist:3.1,auto:true};
 
-// Gray-Scott
-const FS_GS=`#version 300 es
-precision highp float; in vec2 uv; out vec4 o;
-uniform sampler2D st; uniform vec2 texel; uniform float feed,kill,dt;
-void main(){vec2 c=texture(st,uv).rg;
-  vec2 l=texture(st,uv+vec2(-texel.x,0)).rg+texture(st,uv+vec2(texel.x,0)).rg+texture(st,uv+vec2(0,-texel.y)).rg+texture(st,uv+vec2(0,texel.y)).rg
-    +0.5*(texture(st,uv+vec2(-texel.x,-texel.y)).rg+texture(st,uv+vec2(texel.x,-texel.y)).rg+texture(st,uv+vec2(-texel.x,texel.y)).rg+texture(st,uv+vec2(texel.x,texel.y)).rg)-6.0*c; l/=6.0;
-  float uu=c.r,vv=c.g,r=uu*vv*vv;
-  o=vec4(clamp(uu+(0.16*l.r-r+feed*(1.0-uu))*dt,0.0,1.0),clamp(vv+(0.08*l.g+r-(kill+feed)*vv)*dt,0.0,1.0),0.0,1.0);}`;
+function render(){gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,cv.width,cv.height);
+  gl.clearColor(0.02,0.024,0.04,1);gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE);gl.disable(gl.DEPTH_TEST);
+  for(let i=0;i<N;i++){const o=i*5;packed[o]=px[i];packed[o+1]=py[i];packed[o+2]=pz[i];packed[o+3]=en[i];packed[o+4]=ag[i];}
+  gl.bindBuffer(gl.ARRAY_BUFFER,vbo);gl.bufferSubData(gl.ARRAY_BUFFER,0,packed,0,N*5);
+  const asp=cv.width/cv.height;let mvp;
+  if(P.dims===3){const ce=Math.cos(cam.el),eye=[Math.cos(cam.az)*ce*cam.dist,Math.sin(cam.el)*cam.dist,Math.sin(cam.az)*ce*cam.dist];
+    mvp=mul(persp(0.9,asp,0.05,50),look(eye,[0,0,0],[0,1,0]));}
+  else mvp=ortho(1.05,asp);
+  gl.useProgram(prog);gl.bindVertexArray(vaoP);
+  gl.uniformMatrix4fv(gl.getUniformLocation(prog,'mvp'),false,new Float32Array(mvp));
+  gl.uniform1f(gl.getUniformLocation(prog,'psize'),P.glow*Math.min(cv.width,cv.height)/220);
+  gl.uniform1f(gl.getUniformLocation(prog,'is3'),P.dims===3?1:0);
+  gl.uniform1i(gl.getUniformLocation(prog,'cmapId'),P.cmap);gl.uniform1f(gl.getUniformLocation(prog,'glow'),P.glow);
+  gl.drawArrays(gl.POINTS,0,N);}
 
-const FS_BRUSH=`#version 300 es
-precision highp float; in vec2 uv; out vec4 o;
-uniform sampler2D st; uniform vec2 bp; uniform float br,ba; uniform int isgs; uniform vec3 tint;
-void main(){vec4 c=texture(st,uv);float d=distance(uv,bp);float g=exp(-d*d/(br*br))*ba;
-  if(isgs==1){o=vec4(clamp(c.r-g*0.6,0.0,1.0),clamp(c.g+g,0.0,1.0),0.0,1.0);}
-  else{o=vec4(clamp(c.rgb+g*tint,0.0,1.0),1.0);}}`;
+// ---------- loop ----------
+let last=performance.now(),acc=0,frames=0,tAcc=0;
+function frame(now){requestAnimationFrame(frame);const dm=Math.min(now-last,50);last=now;frames++;acc+=dm;tAcc+=dm;
+  if(acc>400){$('hFps').textContent=Math.round(1000*frames/acc);frames=0;acc=0;}
+  if(P.playing){step(0.9);step(0.9);}
+  if(tAcc>1000){bRate=Math.round(births*1000/tAcc);dRate=Math.round(deaths*1000/tAcc);births=0;deaths=0;tAcc=0;
+    $('sBirth').textContent=bRate;$('sDeath').textContent=dRate;}
+  if(P.dims===3&&cam.auto)cam.az+=0.0026;
+  render();
+  $('sPop').textContent=N;$('hGen').textContent=P.gen;$('hPeak').textContent=P.peak;}
 
-const FS_DISP=`#version 300 es
-precision highp float; in vec2 uv; out vec4 o; uniform sampler2D st; uniform int cmapId,mode,isgs; ${CM}
-void main(){vec3 s=texture(st,uv).rgb;vec3 col;
-  if(isgs==1){col=cmap(cmapId,s.g*2.4);}
-  else if(mode==1){col=cmap(cmapId,max(max(s.r,s.g),s.b));}
-  else{col=s;}
-  col+=col*col*0.4; o=vec4(col,1.0);}`;
-
-// ---- 3D volumetric ----
-const FS_3D=`#version 300 es
-precision highp float; in vec2 uv; out vec4 o;
-uniform highp sampler3D vol; uniform vec3 dim; uniform float layer,radius3,dt,mu3,sig3;
-float bell(float x,float m,float s){float d=(x-m)/s;return exp(-0.5*d*d);}
-void main(){const int R=4;float acc=0.0,ws=0.0;
-  for(int dz=-R;dz<=R;dz++)for(int dy=-R;dy<=R;dy++)for(int dx=-R;dx<=R;dx++){
-    float d=length(vec3(float(dx),float(dy),float(dz)));if(d>radius3)continue;
-    float w=bell(d/radius3,0.5,0.18);
-    vec3 p=vec3(uv.x+float(dx)/dim.x,uv.y+float(dy)/dim.y,(layer+float(dz)+0.5)/dim.z);
-    acc+=texture(vol,fract(p)).r*w;ws+=w;}
-  float Uv=acc/max(ws,1e-9); float G=2.0*bell(Uv,mu3,sig3)-1.0;
-  float a=clamp(texture(vol,vec3(uv,(layer+0.5)/dim.z)).r+dt*G,0.0,1.0);
-  o=vec4(a,a,a,1.0);}`;
-
-const FS_RAY=`#version 300 es
-precision highp float; in vec2 uv; out vec4 o;
-uniform highp sampler3D vol; uniform vec3 eye; uniform mat3 basis; uniform float aspect,dens; uniform int cmapId; ${CM}
-vec2 hit(vec3 ro,vec3 rd){vec3 iv=1.0/rd,t0=(-1.0-ro)*iv,t1=(1.0-ro)*iv,tn=min(t0,t1),tf=max(t0,t1);
-  return vec2(max(max(tn.x,tn.y),tn.z),min(min(tf.x,tf.y),tf.z));}
-void main(){vec2 nd=uv*2.0-1.0; nd.x*=aspect;
-  vec3 rd=normalize(basis*vec3(nd,1.6)); vec3 ro=eye;
-  vec2 t=hit(ro,rd); vec3 bg=vec3(0.02,0.028,0.05);
-  if(t.y<max(t.x,0.0)){o=vec4(bg,1.0);return;}
-  float ts=max(t.x,0.0); const int N=112; float step=(t.y-ts)/float(N);
-  vec3 col=vec3(0.0); float al=0.0;
-  for(int i=0;i<N;i++){vec3 p=ro+rd*(ts+float(i)*step); vec3 tc=p*0.5+0.5;
-    float d=texture(vol,tc).r; float dd=smoothstep(0.10,0.55,d);
-    if(dd>0.002){float a=dd*dens*step*22.0; vec3 c=cmap(cmapId,d)*1.15;
-      col+=(1.0-al)*a*c; al+=(1.0-al)*a; if(al>0.97)break;}}
-  o=vec4(col+bg*(1.0-al),1.0);}`;
-
-const pMS=prog(VS,FS_MS),pGS=prog(VS,FS_GS),pBr=prog(VS,FS_BRUSH),pDisp=prog(VS,FS_DISP),p3D=prog(VS,FS_3D),pRay=prog(VS,FS_RAY);
-const vao=gl.createVertexArray();
-
-// ---- 2D state ----
-let RESX=680,RESY=384,tA,tB,fA,fB;
-function tex2(w,h){const t=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,t);
-  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA16F,w,h,0,gl.RGBA,gl.HALF_FLOAT,null);
-  for(const k of[[gl.TEXTURE_MIN_FILTER,gl.LINEAR],[gl.TEXTURE_MAG_FILTER,gl.LINEAR],[gl.TEXTURE_WRAP_S,gl.REPEAT],[gl.TEXTURE_WRAP_T,gl.REPEAT]])gl.texParameteri(gl.TEXTURE_2D,k[0],k[1]);
-  return t;}
-function fbo(t){const f=gl.createFramebuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,f);gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,t,0);return f;}
-function alloc2(resY){RESY=Math.max(64,resY|0);const w=VW(),h=VH();RESX=Math.max(64,Math.round(RESY*(w/h)/8)*8);
-  tA=tex2(RESX,RESY);tB=tex2(RESX,RESY);fA=fbo(tA);fB=fbo(tB);}
-
-// ---- 3D state ----
-const W3=88,H3=88; let D3=48,vA,vB;
-function tex3(w,h,d){const t=gl.createTexture();gl.bindTexture(gl.TEXTURE_3D,t);
-  gl.texImage3D(gl.TEXTURE_3D,0,gl.RGBA16F,w,h,d,0,gl.RGBA,gl.HALF_FLOAT,null);
-  for(const k of[[gl.TEXTURE_MIN_FILTER,gl.LINEAR],[gl.TEXTURE_MAG_FILTER,gl.LINEAR],[gl.TEXTURE_WRAP_S,gl.REPEAT],[gl.TEXTURE_WRAP_T,gl.REPEAT],[gl.TEXTURE_WRAP_R,gl.REPEAT]])gl.texParameteri(gl.TEXTURE_3D,k[0],k[1]);
-  return t;}
-function alloc3(){vA=tex3(W3,H3,D3);vB=tex3(W3,H3,D3);}
-const f3=gl.createFramebuffer();
-
-// ---- presets ----
-const P={
-  rps:{label:'Rock-paper-scissors (chase)',type:'ms',radius:12,dt:0.1,noise:0.006,cmap:0,dmode:0,
-    mu:[0.15,0.15,0.15],sig:[0.016,0.016,0.016],M:[1.0,0.7,-0.5, -0.5,1.0,0.7, 0.7,-0.5,1.0]},
-  symbiosis:{label:'Symbiosis (bloom)',type:'ms',radius:12,dt:0.11,noise:0.004,cmap:4,dmode:0,
-    mu:[0.16,0.14,0.15],sig:[0.017,0.015,0.016],M:[1.0,0.35,0.35, 0.35,1.0,0.35, 0.35,0.35,1.0]},
-  predator:{label:'Predator / prey',type:'ms',radius:12,dt:0.1,noise:0.008,cmap:3,dmode:0,
-    mu:[0.15,0.17,0.14],sig:[0.016,0.014,0.017],M:[1.0,0.9,0.0, -0.9,1.0,0.0, 0.0,0.0,1.0]},
-  soup:{label:'Single Lenia soup',type:'ms',radius:13,dt:0.12,noise:0.003,cmap:0,dmode:1,
-    mu:[0.15,0,0],sig:[0.017,0.02,0.02],M:[1,0,0, 0,0,0, 0,0,0]},
-  coral:{label:'Gray-Scott coral',type:'gs',radius:8,dt:1.0,feed:0.0545,kill:0.062,cmap:2,dmode:1},
-  maze:{label:'Gray-Scott maze',type:'gs',radius:8,dt:1.0,feed:0.039,kill:0.058,cmap:5,dmode:1},
-  vol:{label:'3D volumetric organism',type:'ms',radius:12,dt:0.1,noise:0.006,cmap:0,dmode:0,view3d:true,
-    mu:[0.15,0.15,0.15],sig:[0.016,0.016,0.016],M:[1.0,0.7,-0.5, -0.5,1.0,0.7, 0.7,-0.5,1.0]},
-};
-let S={name:'rps',type:'ms',radius:12,dt:0.1,speed:2,noise:0.006,res:384,cmap:0,dmode:0,view:'2d',
-  mu:[0.15,0.15,0.15],sig:[0.016,0.016,0.016],M:[1.0,0.7,-0.5,-0.5,1.0,0.7,0.7,-0.5,1.0],
-  feed:0.0545,kill:0.062,mu3:0.15,sig3:0.016,dens:1.6,playing:true,step:0,tick:0.123};
-
-// ---- seeding ----
-function seed2(){const b=new Float32Array(RESX*RESY*4);
-  const blobs=S.type==='gs'?0:14;
-  if(S.type==='gs'){for(let i=0;i<RESX*RESY;i++){b[i*4]=1;b[i*4+3]=1;}
-    const sp=Math.max(14,(RESX*RESY/8000)|0);
-    for(let s=0;s<sp;s++){const cy=(Math.random()*RESY)|0,cx=(Math.random()*RESX)|0;
-      for(let dy=-6;dy<=6;dy++)for(let dx=-6;dx<=6;dx++){const gy=((cy+dy)%RESY+RESY)%RESY,gx=((cx+dx)%RESX+RESX)%RESX,i=(gy*RESX+gx)*4;b[i]=0.5;b[i+1]=0.28;}}
-  }else{ // random patches per species
-    const n=Math.max(18,(RESX*RESY/9000)|0);
-    for(let s=0;s<n;s++){const ch=(Math.random()*3)|0,cy=(Math.random()*RESY)|0,cx=(Math.random()*RESX)|0,rr=8+Math.random()*10;
-      for(let dy=-rr;dy<=rr;dy++)for(let dx=-rr;dx<=rr;dx++){if(dx*dx+dy*dy>rr*rr)continue;
-        const gy=((cy+dy|0)%RESY+RESY)%RESY,gx=((cx+dx|0)%RESX+RESX)%RESX,i=(gy*RESX+gx)*4;b[i+ch]=Math.min(1,b[i+ch]+Math.random());}}
-  }
-  gl.bindTexture(gl.TEXTURE_2D,tA);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA16F,RESX,RESY,0,gl.RGBA,gl.FLOAT,b);S.step=0;}
-function seed3(){const b=new Float32Array(W3*H3*D3*4);
-  const n=10;for(let s=0;s<n;s++){const cx=(Math.random()*W3)|0,cy=(Math.random()*H3)|0,cz=(Math.random()*D3)|0,rr=6+Math.random()*6;
-    for(let dz=-rr;dz<=rr;dz++)for(let dy=-rr;dy<=rr;dy++)for(let dx=-rr;dx<=rr;dx++){if(dx*dx+dy*dy+dz*dz>rr*rr)continue;
-      const gx=((cx+dx|0)%W3+W3)%W3,gy=((cy+dy|0)%H3+H3)%H3,gz=((cz+dz|0)%D3+D3)%D3,i=((gz*H3+gy)*W3+gx)*4;const v=Math.min(1,b[i]+Math.random()*0.9);b[i]=v;b[i+1]=v;b[i+2]=v;b[i+3]=1;}}
-  gl.bindTexture(gl.TEXTURE_3D,vA);gl.texImage3D(gl.TEXTURE_3D,0,gl.RGBA16F,W3,H3,D3,0,gl.RGBA,gl.FLOAT,b);S.step=0;}
-function reseed(){ if(S.view==='3d')seed3(); else seed2(); }
-
-// ---- stepping ----
-function step2(){const isgs=S.type==='gs';gl.viewport(0,0,RESX,RESY);gl.bindVertexArray(vao);gl.bindFramebuffer(gl.FRAMEBUFFER,fB);
-  const p=isgs?pGS:pMS;gl.useProgram(p);gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,tA);gl.uniform1i(U(p,'st'),0);
-  gl.uniform2f(U(p,'texel'),1/RESX,1/RESY);gl.uniform1f(U(p,'dt'),S.dt);
-  if(isgs){gl.uniform1f(U(p,'feed'),S.feed);gl.uniform1f(U(p,'kill'),S.kill);}
-  else{gl.uniform1f(U(p,'radius'),S.radius);gl.uniform1f(U(p,'noise'),S.noise);gl.uniform1f(U(p,'tick'),S.tick);S.tick=(S.tick+0.017)%1000.0;
-    gl.uniform3f(U(p,'mu'),S.mu[0],S.mu[1],S.mu[2]);gl.uniform3f(U(p,'sig'),S.sig[0],S.sig[1],S.sig[2]);gl.uniform1fv(U(p,'M'),S.M);}
-  gl.drawArrays(gl.TRIANGLES,0,3);[tA,tB]=[tB,tA];[fA,fB]=[fB,fA];S.step++;}
-function step3(){gl.viewport(0,0,W3,H3);gl.bindVertexArray(vao);gl.useProgram(p3D);
-  gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_3D,vA);gl.uniform1i(U(p3D,'vol'),0);
-  gl.uniform3f(U(p3D,'dim'),W3,H3,D3);gl.uniform1f(U(p3D,'radius3'),Math.min(4,S.radius*0.4+1.5));
-  gl.uniform1f(U(p3D,'dt'),S.dt);gl.uniform1f(U(p3D,'mu3'),S.mu[0]);gl.uniform1f(U(p3D,'sig3'),S.sig[0]);
-  gl.bindFramebuffer(gl.FRAMEBUFFER,f3);
-  for(let z=0;z<D3;z++){gl.framebufferTextureLayer(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,vB,0,z);gl.uniform1f(U(p3D,'layer'),z);gl.drawArrays(gl.TRIANGLES,0,3);}
-  [vA,vB]=[vB,vA];S.step++;}
-function brush(x,y,amp,tint){gl.viewport(0,0,RESX,RESY);gl.bindVertexArray(vao);gl.bindFramebuffer(gl.FRAMEBUFFER,fB);gl.useProgram(pBr);
-  gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,tA);gl.uniform1i(U(pBr,'st'),0);
-  gl.uniform2f(U(pBr,'bp'),x,y);gl.uniform1f(U(pBr,'br'),0.04);gl.uniform1f(U(pBr,'ba'),amp);
-  gl.uniform1i(U(pBr,'isgs'),S.type==='gs'?1:0);gl.uniform3f(U(pBr,'tint'),tint[0],tint[1],tint[2]);
-  gl.drawArrays(gl.TRIANGLES,0,3);[tA,tB]=[tB,tA];[fA,fB]=[fB,fA];}
-
-// ---- camera / matrices ----
-const sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]],cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],
-  dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2],nrm=a=>{const l=Math.hypot(a[0],a[1],a[2])||1;return[a[0]/l,a[1]/l,a[2]/l];};
-let cam={az:0.7,el:0.5,dist:3.2,auto:true};
-
-function render(){gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,cv.width,cv.height);gl.bindVertexArray(vao);gl.disable(gl.DEPTH_TEST);
-  if(S.view==='3d'){
-    const ce=Math.cos(cam.el),eye=[Math.cos(cam.az)*ce*cam.dist,Math.sin(cam.el)*cam.dist,Math.sin(cam.az)*ce*cam.dist];
-    const fwd=nrm(sub([0,0,0],eye)),right=nrm(cross(fwd,[0,1,0])),up=cross(right,fwd);
-    gl.useProgram(pRay);gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_3D,vA);gl.uniform1i(U(pRay,'vol'),0);
-    gl.uniform3f(U(pRay,'eye'),eye[0],eye[1],eye[2]);
-    gl.uniformMatrix3fv(U(pRay,'basis'),false,new Float32Array([right[0],right[1],right[2],up[0],up[1],up[2],fwd[0],fwd[1],fwd[2]]));
-    gl.uniform1f(U(pRay,'aspect'),cv.width/cv.height);gl.uniform1f(U(pRay,'dens'),S.dens);gl.uniform1i(U(pRay,'cmapId'),S.cmap);
-    gl.drawArrays(gl.TRIANGLES,0,3);
-  }else{
-    gl.useProgram(pDisp);gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,tA);gl.uniform1i(U(pDisp,'st'),0);
-    gl.uniform1i(U(pDisp,'cmapId'),S.cmap);gl.uniform1i(U(pDisp,'mode'),S.dmode);gl.uniform1i(U(pDisp,'isgs'),S.type==='gs'?1:0);
-    gl.drawArrays(gl.TRIANGLES,0,3);
-  }}
-
-let last=performance.now(),acc=0,frames=0;
-function frame(now){requestAnimationFrame(frame);const dm=now-last;last=now;frames++;acc+=dm;
-  if(acc>400){$('hudfps').textContent=Math.round(1000*frames/acc);frames=0;acc=0;}
-  if(S.playing){for(let i=0;i<S.speed;i++){if(S.view==='3d')step3();else step2();}}
-  if(S.view==='3d'&&cam.auto)cam.az+=0.0035;
-  render();$('hudstep').textContent=S.step;}
-
-// ---- UI ----
-const $=id=>document.getElementById(id);
-const COLS=['var(--s0)','var(--s1)','var(--s2)'];
+// ---------- UI ----------
 function fitCanvas(){const dpr=Math.min(devicePixelRatio||1,2);cv.width=Math.floor(VW()*dpr);cv.height=Math.floor(VH()*dpr);}
-let rsT=0;addEventListener('resize',()=>{fitCanvas();clearTimeout(rsT);rsT=setTimeout(()=>{if(S.view==='2d'){alloc2(S.res);reseed();}},260);});
+addEventListener('resize',fitCanvas);
+function bind(id,key,fmt,after){const e=$(id);e.value=P[key];
+  const lab=e.closest('.slider').querySelector('.v');lab.textContent=fmt(P[key]);
+  e.addEventListener('input',ev=>{P[key]=+ev.target.value;lab.textContent=fmt(P[key]);if(after)after();});}
+bind('fert','fert',v=>v.toFixed(2));bind('meta','meta',v=>v.toFixed(2));bind('crowd','crowd',v=>v|0);
+bind('repro','repro',v=>v.toFixed(1));bind('cap','cap',v=>v|0);bind('reach','reach',v=>v.toFixed(3));
+bind('coh','coh',v=>v.toFixed(2));bind('sep','sep',v=>v.toFixed(1));bind('spd','spd',v=>v.toFixed(2));bind('glow','glow',v=>v.toFixed(1));
+$('cmap').addEventListener('change',e=>P.cmap=+e.target.value);
+$('play').addEventListener('click',()=>{P.playing=!P.playing;$('play').innerHTML=P.playing?'❚❚ Pause':'▶ Play';});
+$('reset').addEventListener('click',seed);
+document.querySelectorAll('#dimseg button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('#dimseg button').forEach(x=>x.classList.remove('on'));b.classList.add('on');
+  P.dims=+b.dataset.d;$('hDim').textContent=P.dims+'D';$('hint').textContent=P.dims===3?'drag to orbit · scroll to zoom · click to drop a colony':'click to drop a colony';seed();}));
+// mouse: orbit (3d) + drop colony
+let drag=false,lx=0,ly=0,moved=0;
+cv.addEventListener('pointerdown',e=>{drag=true;lx=e.clientX;ly=e.clientY;moved=0;});
+cv.addEventListener('pointermove',e=>{if(!drag)return;moved+=Math.abs(e.clientX-lx)+Math.abs(e.clientY-ly);
+  if(P.dims===3){cam.auto=false;cam.az-=(e.clientX-lx)*0.008;cam.el=Math.max(-1.4,Math.min(1.4,cam.el+(e.clientY-ly)*0.006));}lx=e.clientX;ly=e.clientY;});
+addEventListener('pointerup',e=>{if(drag&&moved<6&&P.dims===2){const x=e.clientX/VW(),y=1-e.clientY/VH();
+  for(let k=0;k<80;k++)spawn((x+rnd(-.03,.03)+1)%1,(y+rnd(-.03,.03)+1)%1,.5,rnd(2,3.5));}drag=false;});
+cv.addEventListener('wheel',e=>{if(P.dims===3){e.preventDefault();cam.dist=Math.max(1.5,Math.min(8,cam.dist+e.deltaY*0.003));}},{passive:false});
+setTimeout(()=>$('hint').style.opacity='0',7000);
 
-function buildMatrix(){const m=$('matrix');m.innerHTML='<div></div>'+[0,1,2].map(j=>`<div class="hd" style="color:${COLS[j]}">S${j}</div>`).join('');
-  for(let i=0;i<3;i++){m.insertAdjacentHTML('beforeend',`<div class="rl" style="color:${COLS[i]}">S${i}</div>`);
-    for(let j=0;j<3;j++){const idx=i*3+j;
-      m.insertAdjacentHTML('beforeend',`<div class="cell"><input type="range" min="-1" max="1" step="0.05" value="${S.M[idx]}" data-m="${idx}"><span class="cv" data-mv="${idx}">${S.M[idx].toFixed(2)}</span></div>`);}}
-  m.querySelectorAll('input[data-m]').forEach(el=>el.addEventListener('input',e=>{const k=+e.target.dataset.m;S.M[k]=+e.target.value;m.querySelector(`[data-mv="${k}"]`).textContent=(+e.target.value).toFixed(2);}));}
-function buildSpecies(){const c=$('species');c.innerHTML='';
-  for(let i=0;i<3;i++){c.insertAdjacentHTML('beforeend',
-    `<div class="slider"><div class="lab"><b><span class="swatch" style="background:${COLS[i]}"></span>μ${i} / σ${i}</b><span class="v" id="msv${i}"></span></div>
-     <div class="row" style="gap:6px"><input type="range" id="mu${i}" min="0.02" max="0.35" step="0.002" value="${S.mu[i]}"><input type="range" id="sg${i}" min="0.004" max="0.06" step="0.001" value="${S.sig[i]}"></div></div>`);}
-  for(let i=0;i<3;i++){const upd=()=>{$('msv'+i).textContent=(+$('mu'+i).value).toFixed(3)+' / '+(+$('sg'+i).value).toFixed(3);};
-    $('mu'+i).addEventListener('input',e=>{S.mu[i]=+e.target.value;upd();});$('sg'+i).addEventListener('input',e=>{S.sig[i]=+e.target.value;upd();});upd();}}
-function fillPresets(){const s=$('preset');s.innerHTML='';for(const k in P)s.insertAdjacentHTML('beforeend',`<option value="${k}">${P[k].label}</option>`);s.value='rps';}
-function setView(v){S.view=v;$('dimblock').style.display=v==='3d'?'block':'none';
-  document.querySelectorAll('#viewseg button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
-  $('hint').textContent=v==='3d'?'drag to orbit · scroll to zoom':'drag to seed · scroll to zoom';
-  if(v==='3d'){alloc3();seed3();}else{alloc2(S.res);seed2();}}
-function apply(k){const p=P[k];S.name=k;S.type=p.type;S.radius=p.radius;S.dt=p.dt;S.cmap=p.cmap;S.dmode=p.dmode;
-  if(p.type==='ms'){S.mu=p.mu.slice();S.sig=p.sig.slice();S.M=p.M.slice();S.noise=p.noise;}
-  else{S.feed=p.feed;S.kill=p.kill;}
-  $('msblock').style.display=p.type==='ms'?'block':'none';$('gsblock').style.display=p.type==='gs'?'block':'none';
-  $('cmap').value=''+p.cmap;$('dmode').value=''+p.dmode;
-  buildMatrix();buildSpecies();sync();$('hudname').textContent=k;
-  setView(p.view3d?'3d':'2d');}
-function sync(){const set=(id,v,f)=>{const e=$(id);if(e){e.value=v;const s=e.closest('.slider');if(s)s.querySelector('.v').textContent=f(v);}};
-  set('radius',S.radius,v=>v);set('dt',S.dt,v=>(+v).toFixed(2));set('speed',S.speed,v=>v);set('noise',S.noise,v=>(+v).toFixed(3));
-  set('res',S.res,v=>v);set('feed',S.feed,v=>(+v).toFixed(4));set('kill',S.kill,v=>(+v).toFixed(4));
-  set('depth',D3,v=>v);set('dens',S.dens,v=>(+v).toFixed(1));$('hudres').textContent=S.view==='3d'?`${W3}³·${D3}`:`${RESX}×${RESY}`;}
-function bind(id,fn,fmt){$(id).addEventListener('input',e=>{fn(+e.target.value);const s=e.target.closest('.slider');if(s)s.querySelector('.v').textContent=fmt(+e.target.value);});}
-bind('radius',v=>S.radius=v,v=>v);bind('dt',v=>S.dt=v,v=>v.toFixed(2));bind('speed',v=>S.speed=v,v=>v);bind('noise',v=>S.noise=v,v=>v.toFixed(3));
-bind('feed',v=>S.feed=v,v=>v.toFixed(4));bind('kill',v=>S.kill=v,v=>v.toFixed(4));bind('dens',v=>S.dens=v,v=>v.toFixed(1));
-bind('res',v=>{S.res=v;if(S.view==='2d'){alloc2(v);seed2();}$('hudres').textContent=`${RESX}×${RESY}`;},v=>v);
-bind('depth',v=>{D3=v;if(S.view==='3d'){alloc3();seed3();}$('hudres').textContent=`${W3}³·${D3}`;},v=>v);
-$('play').addEventListener('click',()=>{S.playing=!S.playing;$('play').innerHTML=S.playing?'❚❚ Pause':'▶ Play';});
-$('reset').addEventListener('click',reseed);$('rand').addEventListener('click',reseed);
-$('preset').addEventListener('change',e=>apply(e.target.value));
-$('cmap').addEventListener('change',e=>S.cmap=+e.target.value);
-$('dmode').addEventListener('change',e=>S.dmode=+e.target.value);
-document.querySelectorAll('#viewseg button').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.v)));
-let drag=false,lx=0,ly=0;
-cv.addEventListener('pointerdown',e=>{drag=true;lx=e.clientX;ly=e.clientY;if(S.view==='2d'){const t=[[1,.3,.3],[.3,1,.3],[.3,.3,1]][(Math.random()*3)|0];brush(e.clientX/VW(),1-e.clientY/VH(),S.type==='gs'?1:0.9,t);}});
-cv.addEventListener('pointermove',e=>{if(!drag)return;
-  if(S.view==='2d'){const t=[[1,.3,.3],[.3,1,.3],[.3,.3,1]][((e.clientX+e.clientY)/40|0)%3];brush(e.clientX/VW(),1-e.clientY/VH(),S.type==='gs'?1:0.9,t);}
-  else{cam.auto=false;cam.az-=(e.clientX-lx)*0.008;cam.el=Math.max(-1.4,Math.min(1.4,cam.el+(e.clientY-ly)*0.006));}lx=e.clientX;ly=e.clientY;});
-addEventListener('pointerup',()=>drag=false);
-cv.addEventListener('wheel',e=>{if(S.view==='3d'){e.preventDefault();cam.dist=Math.max(1.5,Math.min(8,cam.dist+e.deltaY*0.003));}},{passive:false});
-setTimeout(()=>$('hint').style.opacity='0',6000);
-
-fitCanvas();alloc2(S.res);alloc3();fillPresets();apply('rps');requestAnimationFrame(frame);
+fitCanvas();seed();requestAnimationFrame(frame);
 </script>
 </body>
 </html>
