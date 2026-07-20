@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AXIOM: the masterdoc</title>
+<meta name="description" content="A configurable research engine for cellular automata, graphs, and machine learning, in Rust. Read at three depths: plain, analogy, and technical.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&amp;family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f7f3ea; --paper-2:#efe8d9; --card:#fbf8f1;
+  --ink:#1c1814; --muted:#6b6256; --faint:#938977;
+  --line:rgba(28,24,20,.12); --line-2:rgba(28,24,20,.22);
+  --accent:#b45309; --accent-bright:#e08a1e; --accent-soft:rgba(180,83,9,.10);
+  --cold:#51607a; --cold-soft:rgba(81,96,122,.12);
+  --good:#4d7c4a; --bad:#a23b2e;
+  --dark:#16130f; --on-dark:#f3ecde; --on-dark-mute:#b3a892;
+  --serif:'Fraunces','Iowan Old Style',Georgia,'Times New Roman',serif;
+  --sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+  --col:min(720px,92vw);
+  --r:14px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{
+  margin:0;background:var(--paper);color:var(--ink);
+  font-family:var(--sans);font-size:17.5px;line-height:1.62;
+  font-feature-settings:"kern","liga","calt";text-rendering:optimizeLegibility;
+}
+::selection{background:var(--accent);color:#fff}
+#progress{position:fixed;top:0;left:0;height:3px;width:0;z-index:120;
+  background:linear-gradient(90deg,var(--accent),var(--accent-bright));transition:width .12s linear}
+.topbar{position:sticky;top:0;z-index:100;background:rgba(247,243,234,.86);
+  backdrop-filter:saturate(140%) blur(12px);border-bottom:1px solid var(--line);}
+.topbar .inner{max-width:1180px;margin:0 auto;display:flex;align-items:center;gap:18px;
+  padding:11px clamp(14px,3vw,28px);}
+.brand{display:flex;align-items:center;gap:10px;font-weight:600;letter-spacing:-.01em;white-space:nowrap}
+.brand .dot{width:11px;height:11px;border-radius:50%;background:var(--accent);
+  box-shadow:0 0 0 3px var(--accent-soft)}
+.brand b{font-family:var(--mono);font-weight:600;font-size:.94em}
+.topbar .spacer{flex:1}
+.levelctl{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.levelctl .lbl{font-size:.7rem;text-transform:uppercase;letter-spacing:.13em;color:var(--faint);font-weight:600}
+.seg{display:inline-flex;background:var(--paper-2);border:1px solid var(--line);border-radius:999px;padding:3px}
+.seg button{border:0;background:transparent;font:inherit;font-size:.8rem;font-weight:500;color:var(--muted);
+  padding:5px 13px;border-radius:999px;cursor:pointer;transition:.18s;white-space:nowrap;line-height:1.1}
+.seg button:hover{color:var(--ink)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.navtoggle{display:none}
+.layout{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:248px minmax(0,1fr);
+  gap:clamp(20px,4vw,56px);padding:0 clamp(14px,3vw,28px)}
+.toc{position:sticky;top:74px;align-self:start;max-height:calc(100vh - 92px);overflow:auto;
+  padding:26px 0 40px;font-size:.86rem}
+.toc h4{margin:0 0 10px;font-size:.68rem;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);font-weight:700}
+.toc ol{list-style:none;margin:0 0 20px;padding:0;border-left:1px solid var(--line)}
+.toc li a{display:block;padding:4px 0 4px 14px;margin-left:-1px;color:var(--muted);text-decoration:none;
+  border-left:2px solid transparent;transition:.15s;line-height:1.35}
+.toc li a:hover{color:var(--ink)}
+.toc li a.active{color:var(--accent);border-left-color:var(--accent);font-weight:600}
+.toc .part{font-family:var(--serif);font-size:.78rem;letter-spacing:.04em;color:var(--faint);
+  text-transform:uppercase;margin:18px 0 6px;padding-left:14px;font-weight:600}
+article{padding:0 0 90px;min-width:0}
+article>*{max-width:var(--col)}
+article .wide{max-width:min(980px,100%)}
+.hero{max-width:none!important;background:var(--dark);color:var(--on-dark);
+  margin:0 calc(-1*clamp(14px,3vw,28px)) 0;padding:clamp(54px,9vw,104px) clamp(20px,5vw,64px) clamp(46px,7vw,78px);
+  border-radius:0 0 var(--r) var(--r);position:relative;overflow:hidden}
+.hero .grid-bg{position:absolute;inset:0;opacity:.5;pointer-events:none;
+  background-image:linear-gradient(rgba(243,236,222,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(243,236,222,.05) 1px,transparent 1px);
+  background-size:34px 34px;mask-image:radial-gradient(ellipse 80% 70% at 70% 0%,#000,transparent)}
+.hero .kicker{font-family:var(--mono);font-size:.74rem;letter-spacing:.22em;text-transform:uppercase;
+  color:var(--accent-bright);margin:0 0 20px;position:relative}
+.hero h1{font-family:var(--serif);font-weight:600;font-size:clamp(2.5rem,7vw,4.7rem);line-height:1.02;
+  letter-spacing:-.02em;margin:0 0 .5em;max-width:16ch;position:relative}
+.hero h1 em{font-style:italic;color:var(--accent-bright)}
+.hero .lede{font-size:clamp(1.05rem,2.2vw,1.32rem);line-height:1.5;color:var(--on-dark);max-width:48ch;
+  margin:0 0 2em;position:relative}
+.hero .lede b{color:#fff;font-weight:600}
+.hero .stats{display:flex;flex-wrap:wrap;gap:clamp(20px,4vw,52px);position:relative}
+.hero .stat .n{font-family:var(--serif);font-size:clamp(1.8rem,4vw,2.7rem);font-weight:600;line-height:1;color:var(--accent-bright)}
+.hero .stat .t{font-size:.82rem;color:var(--on-dark-mute);margin-top:7px;max-width:20ch}
+.howto{background:var(--card);border:1px solid var(--line);border-radius:var(--r);
+  padding:20px 22px;margin:34px 0 8px;display:grid;gap:14px}
+.howto h4{margin:0;font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700}
+.howto p{margin:0;font-size:.95rem;color:var(--muted)}
+.howto .legend{display:flex;flex-wrap:wrap;gap:10px}
+.tag{display:inline-flex;align-items:center;gap:7px;font-size:.78rem;font-weight:600;
+  padding:5px 11px;border-radius:999px;border:1px solid var(--line)}
+.tag .d{width:8px;height:8px;border-radius:50%}
+.tag.plain{color:var(--ink)} .tag.plain .d{background:var(--ink)}
+.tag.ana{color:var(--accent)} .tag.ana .d{background:var(--accent)}
+.tag.tech{color:var(--cold)} .tag.tech .d{background:var(--cold)}
+.part-head{margin:78px 0 8px;padding-top:18px}
+.part-head .pn{font-family:var(--mono);font-size:.76rem;letter-spacing:.2em;color:var(--accent);font-weight:600}
+.part-head h2{font-family:var(--serif);font-weight:600;font-size:clamp(1.9rem,4vw,2.7rem);
+  line-height:1.05;letter-spacing:-.02em;margin:.18em 0 0}
+.part-head .sub{color:var(--muted);font-size:1.05rem;margin:.7em 0 0;max-width:54ch}
+section.block{margin:46px 0;scroll-margin-top:84px}
+section.block>h3{font-family:var(--serif);font-weight:600;font-size:1.5rem;letter-spacing:-.01em;
+  margin:0 0 .5em;line-height:1.15}
+article p{margin:0 0 1.05em}
+.plain{font-size:1.07rem;color:#2c2722}
+.plain.lead{font-size:1.16rem;line-height:1.55}
+article a{color:var(--accent);text-decoration:none;border-bottom:1px solid var(--accent-soft);transition:.15s}
+article a:hover{border-bottom-color:var(--accent)}
+strong{font-weight:600}
+em{font-style:italic}
+code{font-family:var(--mono);font-size:.84em;background:var(--paper-2);padding:.12em .4em;border-radius:5px;
+  border:1px solid var(--line)}
+h3 code,h4 code{font-size:.78em}
+details.layer{margin:16px 0;border:1px solid var(--line);border-radius:11px;overflow:hidden;background:var(--card)}
+details.layer[open]{box-shadow:0 1px 0 var(--line)}
+details.layer>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:11px;
+  padding:13px 16px;font-weight:600;font-size:.92rem;user-select:none;transition:background .15s}
+details.layer>summary::-webkit-details-marker{display:none}
+details.layer>summary:hover{background:var(--paper-2)}
+.layer .badge{font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;font-weight:700;
+  padding:3px 9px;border-radius:6px;white-space:nowrap}
+.layer.analogy{border-left:3px solid var(--accent)}
+.layer.analogy .badge{background:var(--accent-soft);color:var(--accent)}
+.layer.technical{border-left:3px solid var(--cold)}
+.layer.technical .badge{background:var(--cold-soft);color:var(--cold)}
+.layer .stitle{color:var(--muted);font-weight:500;font-size:.86rem}
+.layer .chev{margin-left:auto;color:var(--faint);transition:transform .2s;flex:none}
+details.layer[open]>summary .chev{transform:rotate(90deg)}
+.layer .body{padding:2px 18px 18px}
+.layer.technical .body{font-size:.96rem}
+.layer .body>*:first-child{margin-top:0}
+.layer .body>*:last-child{margin-bottom:0}
+.layer.technical .body p,.layer.technical .body li{color:#332e28}
+pre{background:var(--dark);color:#e7dfce;font-family:var(--mono);font-size:.82rem;line-height:1.6;
+  padding:18px 20px;border-radius:11px;overflow:auto;margin:18px 0;border:1px solid #2a241c}
+pre code{background:none;border:0;padding:0;font-size:1em;color:inherit}
+pre .c{color:#8d8674}
+pre .k{color:#e08a1e}
+pre .s{color:#9bb08a}
+pre .n{color:#cdb6ff}
+.tablewrap{overflow-x:auto;margin:20px 0;border:1px solid var(--line);border-radius:11px}
+table{border-collapse:collapse;width:100%;font-size:.88rem}
+th,td{text-align:left;padding:10px 13px;border-bottom:1px solid var(--line);vertical-align:top}
+thead th{background:var(--paper-2);font-weight:600;font-size:.74rem;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--muted);white-space:nowrap}
+tbody tr:last-child td{border-bottom:0}
+tbody tr:hover{background:rgba(180,83,9,.04)}
+td .mono,th .mono{font-family:var(--mono);font-size:.92em}
+.yes{color:var(--good);font-weight:600}.no{color:var(--bad);font-weight:600}
+.callout{border:1px solid var(--line);border-left:3px solid var(--accent);background:var(--card);
+  border-radius:10px;padding:16px 18px;margin:20px 0}
+.callout.cold{border-left-color:var(--cold)}
+.callout .h{font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;font-weight:700;color:var(--accent);margin-bottom:6px}
+.callout.cold .h{color:var(--cold)}
+.callout p{margin:0;font-size:.96rem}
+.pull{font-family:var(--serif);font-size:1.3rem;line-height:1.4;color:var(--ink);font-weight:500;
+  border-left:3px solid var(--accent);padding:6px 0 6px 22px;margin:26px 0}
+.statgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin:22px 0}
+.statgrid .s{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:15px 16px}
+.statgrid .s .n{font-family:var(--serif);font-size:1.7rem;font-weight:600;line-height:1;color:var(--accent)}
+.statgrid .s .n.cold{color:var(--cold)}
+.statgrid .s .t{font-size:.8rem;color:var(--muted);margin-top:6px}
+.cols2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:20px 0}
+.casecard{border:1px solid var(--line);border-radius:11px;padding:16px 18px;background:var(--card)}
+.casecard.bull{border-top:3px solid var(--good)}
+.casecard.bear{border-top:3px solid var(--bad)}
+.casecard h5{margin:0 0 8px;font-size:.78rem;letter-spacing:.1em;text-transform:uppercase;font-weight:700}
+.casecard.bull h5{color:var(--good)}.casecard.bear h5{color:var(--bad)}
+.casecard ul{margin:0;padding-left:18px;font-size:.92rem;color:#332e28}
+.casecard li{margin:.4em 0}
+footer{background:var(--dark);color:var(--on-dark-mute);margin-top:60px;
+  padding:54px clamp(20px,5vw,64px);border-radius:var(--r) var(--r) 0 0}
+footer .inner{max-width:1180px;margin:0 auto}
+footer h3{font-family:var(--serif);color:var(--on-dark);font-size:1.5rem;margin:0 0 .4em;font-weight:600}
+footer p{margin:0 0 1em;max-width:60ch;font-size:.95rem}
+footer .docs{display:flex;gap:14px;flex-wrap:wrap;margin-top:18px}
+footer .docs a{color:var(--on-dark);text-decoration:none;border:1px solid rgba(243,236,222,.18);
+  border-radius:9px;padding:9px 15px;font-size:.85rem;font-family:var(--mono);transition:.15s}
+footer .docs a:hover{border-color:var(--accent-bright);color:var(--accent-bright)}
+footer .meta{margin-top:30px;padding-top:20px;border-top:1px solid rgba(243,236,222,.12);font-size:.78rem;color:var(--faint)}
+@media(max-width:900px){
+  body{font-size:16.5px}
+  .layout{grid-template-columns:1fr}
+  .toc{position:fixed;inset:54px 0 auto 0;z-index:90;background:var(--paper);border-bottom:1px solid var(--line);
+    max-height:70vh;padding:18px clamp(14px,4vw,24px);box-shadow:0 14px 30px rgba(0,0,0,.12);display:none}
+  .toc.open{display:block}
+  .navtoggle{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--paper-2);
+    border-radius:9px;padding:7px 12px;font:inherit;font-size:.8rem;font-weight:600;cursor:pointer;color:var(--ink)}
+  .cols2{grid-template-columns:1fr}
+  article>*{max-width:100%}
+}
+@media(max-width:560px){
+  .levelctl .lbl{display:none}
+  .hero{border-radius:0 0 10px 10px}
+}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
+</style>
+</head>
+<body class="level-2">
+<div id="progress"></div>
+
+<header class="topbar">
+  <div class="inner">
+    <span class="brand"><span class="dot"></span><b>AXIOM</b></span>
+    <button class="navtoggle" id="navtoggle" aria-expanded="false">☰ Contents</button>
+    <span class="spacer" style="flex:1"></span>
+    <div class="levelctl">
+      <span class="lbl">Reading level</span>
+      <div class="seg" role="group" aria-label="Reading level">
+        <button data-level="1" aria-pressed="false">Plain</button>
+        <button data-level="2" aria-pressed="true">+ Analogy</button>
+        <button data-level="3" aria-pressed="false">Full</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="toc" id="toc">
+    <h4>Contents</h4>
+    <div class="part">I · The idea</div>
+    <ol>
+      <li><a href="#what">What it is</a></li>
+      <li><a href="#seam">The seam it is built for</a></li>
+      <li><a href="#config">Everything is a config</a></li>
+    </ol>
+    <div class="part">II · The engine</div>
+    <ol>
+      <li><a href="#loop">The update loop</a></li>
+      <li><a href="#rules">Five rules, one trait</a></li>
+      <li><a href="#substrates">Four substrates, one abstraction</a></li>
+    </ol>
+    <div class="part">III · Measurement &amp; learning</div>
+    <ol>
+      <li><a href="#analysis">The analysis layer</a></li>
+      <li><a href="#learning">Learning a rule</a></li>
+      <li><a href="#discovery">Illuminating the space</a></li>
+      <li><a href="#loaf">Inference across time</a></li>
+    </ol>
+    <div class="part">IV · Performance</div>
+    <ol>
+      <li><a href="#gpu">CPU oracle, GPU speed</a></li>
+      <li><a href="#validation">What is proven</a></li>
+    </ol>
+    <div class="part">V · The verdict</div>
+    <ol>
+      <li><a href="#market">Instrument, not product</a></li>
+    </ol>
+    <div class="part">VI · Honest limits</div>
+    <ol>
+      <li><a href="#limits">The ceiling</a></li>
+    </ol>
+  </aside>
+
+  <article>
+
+  <header class="hero">
+    <div class="grid-bg"></div>
+    <p class="kicker">Automata × Interactions × Observation Machine</p>
+    <h1>Any dynamical system, as <em>one config</em>.</h1>
+    <p class="lede">AXIOM expresses grid cellular automata, swarms, and graph or hypergraph dynamics as a single configurable substrate, runs them fast, and <b>measures</b> them with graph, detection, and dynamical descriptors. Every stage of the loop is a module chosen by a serializable config, so a new idea is usually one file, not a rewrite.</p>
+    <div class="stats">
+      <div class="stat"><div class="n">5</div><div class="t">rule types on one trait</div></div>
+      <div class="stat"><div class="n">4</div><div class="t">substrates, one abstraction</div></div>
+      <div class="stat"><div class="n">7</div><div class="t">subsystems validated green</div></div>
+      <div class="stat"><div class="n">1</div><div class="t">config = one reproducible experiment</div></div>
+    </div>
+  </header>
+
+  <div class="howto">
+    <h4>How to read this</h4>
+    <p>Every section opens in plain language. Use the control at the top to add layers: analogy for intuition, full for the technical mechanism.</p>
+    <div class="legend">
+      <span class="tag plain"><span class="d"></span>Plain · always on</span>
+      <span class="tag ana"><span class="d"></span>+ Analogy</span>
+      <span class="tag tech"><span class="d"></span>Full · technical</span>
+    </div>
+  </div>
+
+  <!-- ============ PART I ============ -->
+  <div class="part-head" id="part1">
+    <div class="pn">Part I</div>
+    <h2>The idea</h2>
+    <p class="sub">A research instrument for a thin seam, where the configuration space is the research surface.</p>
+  </div>
+
+  <section class="block" id="what">
+    <h3>What it is</h3>
+    <p class="plain lead">AXIOM is a research instrument, not a product. Its job is to express any cellular automaton, swarm, or graph-dynamical system as a configuration, run it, and observe it with a full analysis suite.</p>
+    <p class="plain">It is written in Rust and runs on the CPU by default, with an optional GPU path. An experiment is a config file plus a seed, so it reproduces exactly. The engine itself is a thin driver: it reads the config and wires the chosen modules together.</p>
+    <details class="layer analogy"><summary><span class="badge">Analogy</span><span class="stitle">A modular synth for artificial life</span><span class="chev">›</span></summary>
+      <div class="body">
+        <p>Think of a modular synthesizer. The sound is not baked in; you patch oscillators, filters, and envelopes together, and the patch is the instrument. AXIOM patches together a substrate, a rule, a nonlinearity, an integrator, and a set of observers. The patch is a text file. Change one cable and you have a different experiment, not a different program.</p>
+      </div>
+    </details>
+    <details class="layer technical"><summary><span class="badge">Full</span><span class="stitle">Thin driver over trait objects</span><span class="chev">›</span></summary>
+      <div class="body">
+        <p>Around 3,600 lines of Rust across 20 modules, zero warnings across feature combinations. <code>engine.rs</code> matches on the tagged config enums and instantiates trait objects (<code>Rule</code>, <code>Observer</code>, and the substrate types), then steps with ping-pong buffers. Every run is tagged with an FNV-1a provenance hash over its serialized config.</p>
+      </div>
+    </details>
+  </section>
+
+  <section class="block" id="seam">
+    <h3>The seam it is built for</h3>
+    <p class="plain">The edge AXIOM targets is the intersection of graphs, cellular automata or swarms, and machine learning. Those three communities rarely share a codebase. Treating them as one configurable substrate turns combinations that are normally separate projects into one config change.</p>
+    <p class="plain">A learned rule on a hypergraph, PageRank as an observable over an evolving swarm, a spacetime-relaxed world model: each is a config here, not a rewrite.</p>
+    <div class="pull">A grid is a graph with lattice adjacency; a swarm is a graph with proximity edges; a hypergraph generalizes edges to n-ary relations. One abstraction, four realizations.</div>
+    <details class="layer technical"><summary><span class="badge">Full</span><span class="stitle">Rules as message passing</span><span class="chev">›</span></summary>
+      <div class="body">
+        <p>A convolutional CA update and a graph message-passing step are the same operation, <code>aggregate(neighbors) → update</code>, on different neighborhoods (a fixed lattice versus learned edges). The grid Lenia path is specialized and rayon-parallel for speed; a generic <code>mp_step</code> runs the same law over any <code>Substrate</code>. The concept is shared; the hot loop is not over-abstracted.</p>
+      </div>
+    </details>
+  </section>
+
+  <section class="block" id="config">
+    <h3>Everything is a config</h3>
+    <p class="plain">One serde tree mirrors the whole parameter taxonomy. Each field selects and parameterizes a module. Invalid combinations fail at load with a reason, not silently at runtime.</p>
+    <pre><code><span class="k">rule</span>:
+  <span class="k">type</span>: lenia
+  <span class="k">dt</span>: <span class="n">0.1</span>
+  <span class="k">kernels</span>:
+    - { radius: <span class="n">13</span>, core: gauss_ring, beta: [<span class="n">1.0</span>],
+        growth: { kind: gauss, mu: <span class="n">0.15</span>, sigma: <span class="n">0.015</span> } }</code></pre>
+    <details class="layer analogy"><summary><span class="badge">Analogy</span><span class="stitle">A recipe card, not a kitchen rebuild</span><span class="chev">›</span></summary>
+      <div class="body">
+        <p>Most simulators make you edit the kitchen to change the dish. Here you edit the recipe card. The card is validated before anyone starts cooking, so "gray-scott needs exactly two channels" or "kernel radius too large for this grid" is caught at the door.</p>
+      </div>
+    </details>
+  </section>
+
+  <!-- ============ PART II ============ -->
+  <div class="part-head" id="part2">
+    <div class="pn">Part II</div>
+    <h2>The engine</h2>
+    <p class="sub">One update loop, a small set of swappable modules, and a seam that puts grids and graphs on the same footing.</p>
+  </div>
+
+  <section class="block" id="loop">
+    <h3>The update loop</h3>
+    <p class="plain">State lives in a flat multi-channel field. A rule reads the current field and writes a scratch field; the two are swapped. Observers run over the live state on demand. That is the whole cycle, repeated.</p>
+    <div class="statgrid">
+      <div class="s"><div class="n">C·H·W</div><div class="t">flat f32 field, channel-major</div></div>
+      <div class="s"><div class="n">ping-pong</div><div class="t">never read the buffer you write</div></div>
+      <div class="s"><div class="n cold">rayon</div><div class="t">the convolution parallelizes across rows</div></div>
+    </div>
+  </section>
+
+  <section class="block" id="rules">
+    <h3>Five rules, one trait</h3>
+    <p class="plain">A second, structurally different rule dropping into the same trait with no engine change is the proof the abstraction holds. Classic scalar Lenia is the one-kernel, one-channel case of the general multi-kernel form.</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Rule</th><th>Character</th><th>Signature property</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">lenia</td><td>convolution + growth</td><td>reproduces the Orbium glider</td></tr>
+        <tr><td class="mono">asymptotic_lenia</td><td>relaxation toward a target</td><td>smoother, more stable</td></tr>
+        <tr><td class="mono">flow_lenia</td><td>mass-conserving advection</td><td>mass constant to <span class="mono">1.5e-9</span></td></tr>
+        <tr><td class="mono">gray_scott</td><td>reaction-diffusion</td><td>Turing patterns fill the field</td></tr>
+        <tr><td class="mono">nca</td><td>learned per-cell MLP</td><td>trained, not hand-designed</td></tr>
+      </tbody>
+    </table></div>
+    <details class="layer technical"><summary><span class="badge">Full</span><span class="stitle">Flow Lenia and the NCA</span><span class="chev">›</span></summary>
+      <div class="body">
+        <p>Flow Lenia advects mass along <code>flow·∇U − concentration·∇A</code> using reintegration tracking (bilinear splat, displacement clamped below one cell), so total mass is conserved by construction. The NCA rule is a per-cell MLP over a four-filter perception (identity, Sobel-x, Sobel-y, Laplacian) per channel; the Laplacian is what lets one 3×3 step represent a diffusion rule.</p>
+      </div>
+    </details>
+  </section>
+
+  <section class="block" id="substrates">
+    <h3>Four substrates, one abstraction</h3>
+    <p class="plain">The same growth law that drives a grid runs over a small-world graph and a hypergraph, each one config apart. PageRank is a first-class observer over any of them, including the emergent interaction graph of detected organisms.</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Substrate</th><th>Edges</th><th>Demo</th></tr></thead>
+      <tbody>
+        <tr><td>Grid</td><td>lattice adjacency</td><td>every grid rule</td></tr>
+        <tr><td>Small-world graph</td><td>ring + rewired shortcuts</td><td class="mono">axiom graph</td></tr>
+        <tr><td>Particle swarm</td><td>proximity</td><td class="mono">axiom particle</td></tr>
+        <tr><td>Hypergraph</td><td>n-ary relations</td><td class="mono">axiom hyper</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <!-- ============ PART III ============ -->
+  <div class="part-head" id="part3">
+    <div class="pn">Part III</div>
+    <h2>Measurement &amp; learning</h2>
+    <p class="sub">Most CA tools render. Few measure. The analysis layer, learned rules, discovery, and inference across time are where the instrument earns its name.</p>
+  </div>
+
+  <section class="block" id="analysis">
+    <h3>The analysis layer</h3>
+    <p class="plain">Observers run over the live state and emit named metrics: mass and centroid, connected-component detection with per-organism geometry, and PageRank centrality over the interaction graph the organisms form. Every run writes a metrics log.</p>
+    <div class="pull">This is the differentiator. Many tools render a cellular automaton; almost none expose graph, detection, and dynamical descriptors over the same live state.</div>
+  </section>
+
+  <section class="block" id="learning">
+    <h3>Learning a rule</h3>
+    <p class="plain">A neural cellular automaton, where the rule is a small network, is fit to imitate a Gray-Scott step using gradient-free evolution strategies. The loss drops cleanly over generations, and the learned rule is then evaluated as a world model: prediction error against the true simulator as a function of how far ahead it rolls.</p>
+    <div class="statgrid">
+      <div class="s"><div class="n">7.7×</div><div class="t">imitation loss reduction over 80 generations</div></div>
+      <div class="s"><div class="n cold">no autodiff</div><div class="t">evolution strategies need only forward passes</div></div>
+      <div class="s"><div class="n">→ config</div><div class="t">the trained rule saves as a runnable file</div></div>
+    </div>
+    <details class="layer technical"><summary><span class="badge">Full</span><span class="stitle">Antithetic ES + rollout error</span><span class="chev">›</span></summary>
+      <div class="body">
+        <p>Antithetic finite-difference ES minimizes one-step MSE against the target rule over a batch of on-distribution states. Because it needs only forward passes, there is no autodiff backend. <code>rollout_error</code> then rolls the learned rule and the true rule from the same seed and reports per-step MSE, which grows with horizon in the way a forward world model does.</p>
+      </div>
+    </details>
+  </section>
+
+  <section class="block" id="discovery">
+    <h3>Illuminating the space</h3>
+    <p class="plain">Instead of searching for one best rule, MAP-Elites keeps the most structured pattern found in each region of behavior space. The result is a map of the diverse behaviors Lenia can produce, rendered as a montage over that space: rings, labyrinths, spots, and sparse gliders side by side.</p>
+    <details class="layer analogy"><summary><span class="badge">Analogy</span><span class="stitle">A field guide, not a trophy</span><span class="chev">›</span></summary>
+      <div class="body">
+        <p>Ordinary optimization brings back one winner. Quality-diversity brings back a field guide: one strong specimen per niche, organized so you can see the whole range at a glance. Here the niches are binned by how much mass survives and how much it moves.</p>
+      </div>
+    </details>
+  </section>
+
+  <section class="block" id="loaf">
+    <h3>Inference across time</h3>
+    <p class="plain">Standard simulation steps forward and accumulates error. The spacetime-loaf mode instead treats the whole space-by-time volume as one field and relaxes it to global consistency. Fix the first and last frames, relax, and the occluded middle comes back.</p>
+    <div class="statgrid">
+      <div class="s"><div class="n">→ 0</div><div class="t">interior reconstruction error after relaxation</div></div>
+      <div class="s"><div class="n cold">~1400×</div><div class="t">closer to the true trajectory than the occluded guess</div></div>
+    </div>
+    <details class="layer technical"><summary><span class="badge">Full</span><span class="stitle">A convex energy over the volume</span><span class="chev">›</span></summary>
+      <div class="body">
+        <p>The mode minimizes <code>E = Σ ‖V[t+1] − F(V[t])‖²</code> over the volume with the endpoints fixed, where <code>F</code> is one diffusion step. For a linear <code>F</code> the energy is convex, so gradient descent recovers the true interior. Information flows backward and sideways in time, so there is no rollout-error accumulation. A nonlinear operator makes this non-convex, and convergence stops being free.</p>
+      </div>
+    </details>
+  </section>
+
+  <!-- ============ PART IV ============ -->
+  <div class="part-head" id="part4">
+    <div class="pn">Part IV</div>
+    <h2>Performance</h2>
+    <p class="sub">The CPU path is the reference the rest is checked against. The GPU path is the speed, kept honest by that reference.</p>
+  </div>
+
+  <section class="block" id="gpu">
+    <h3>CPU oracle, GPU speed</h3>
+    <p class="plain">The Lenia convolution runs as a headless GPU compute pipeline with one thread per cell and ping-pong buffers, validated to match the CPU result to floating-point precision. The speedup is real but modest, because the naive convolution is memory-bound and the CPU path is already parallel.</p>
+    <div class="statgrid">
+      <div class="s"><div class="n">2.4e-7</div><div class="t">max GPU-vs-CPU difference, one step (Apple M3)</div></div>
+      <div class="s"><div class="n cold">3.6×</div><div class="t">GPU over CPU at 512²</div></div>
+      <div class="s"><div class="n">headless</div><div class="t">no window or surface; runs in CI</div></div>
+    </div>
+    <div class="callout cold"><div class="h">Honest finding</div><p>A naive global-memory GPU convolution only modestly beats an already-parallel CPU. Shared-memory tiling or FFT convolution is the unrealized speed, and it is the first item on the backlog.</p></div>
+  </section>
+
+  <section class="block" id="validation">
+    <h3>What is proven</h3>
+    <p class="plain">A single command smoke-tests every subsystem and asserts a measurable property for each. The Orbium glider validates the whole convolution-to-growth-to-integrate pipeline against a known attractor.</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Check</th><th>Property</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr><td>Orbium oracle</td><td>alive and moving</td><td>mass 75.1 → 72.8, path 234 cells</td></tr>
+        <tr><td>Gray-Scott</td><td>patterns form</td><td>mean(v) 0.227</td></tr>
+        <tr><td>Detection + PageRank</td><td>ranked organisms</td><td>18 organisms, PR sum 1.000</td></tr>
+        <tr><td>Graph seam</td><td>valid PageRank, hubs</td><td>hub/leaf 2.1×</td></tr>
+        <tr><td>Flow Lenia</td><td>mass conserved</td><td>drift 1.5e-9</td></tr>
+        <tr><td>Asymptotic Lenia</td><td>alive, bounded</td><td>mean 0.209</td></tr>
+        <tr><td>GPU vs CPU</td><td>matches to f32</td><td>diff 2.4e-7</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <!-- ============ PART V ============ -->
+  <div class="part-head" id="part5">
+    <div class="pn">Part V</div>
+    <h2>The verdict</h2>
+    <p class="sub">Judged honestly as what it is, not as what would flatter it.</p>
+  </div>
+
+  <section class="block" id="market">
+    <h3>Instrument, not product</h3>
+    <p class="plain lead">As a commercial artifact the direct market is near zero: the audience for a configurable CA engine is small, technical, and served by free tools. As a research and credibility asset in an under-tooled niche, it is worth building. The value is the instrument existing and pointing at a seam nobody else tools well, not anyone paying for it.</p>
+    <div class="cols2">
+      <div class="casecard bull"><h5>Bull case</h5><ul>
+        <li>The seam is thin; few are fluent in CA, graphs, and ML together.</li>
+        <li>The analysis layer (graph, detection, and dynamical descriptors on one live state) is genuinely rare.</li>
+        <li>One-config-per-experiment leverage compounds as modules multiply.</li>
+      </ul></div>
+      <div class="casecard bear"><h5>Bear case</h5><ul>
+        <li>Every individual mechanism already exists; the novelty is integration.</li>
+        <li>Integration is not defensible and is reproducible by any motivated researcher.</li>
+        <li>The moat is taste and follow-through, not technology.</li>
+      </ul></div>
+    </div>
+    <p class="plain">The right framing is internal. AXIOM lowers the cost of a class of experiments its builder actually runs and produces a legible artifact in a niche they own. Judge the next increment by whether it enables a specific experiment, not by a user count that will not exist.</p>
+  </section>
+
+  <!-- ============ PART VI ============ -->
+  <div class="part-head" id="part6">
+    <div class="pn">Part VI</div>
+    <h2>Honest limits</h2>
+    <p class="sub">Where the current build stops, stated plainly.</p>
+  </div>
+
+  <section class="block" id="limits">
+    <h3>The ceiling</h3>
+    <ul>
+      <li><strong>GPU is unoptimized.</strong> Naive global-memory convolution, bandwidth-bound, single-kernel and single-channel only. Multi-kernel, multi-channel, and graph-mode dynamics run on CPU.</li>
+      <li><strong>Sparse work fights the GPU.</strong> Graph, particle, and hypergraph substrates run on CPU by design.</li>
+      <li><strong>Learning is gradient-free.</strong> Evolution strategies fit local rules well but scale poorly in parameter count; a differentiable backend is the path to morphogenesis-scale NCAs.</li>
+      <li><strong>Loaf is linear.</strong> Spacetime relaxation is implemented for diffusion, where the energy is convex. A nonlinear operator makes convergence a real question.</li>
+      <li><strong>The config surface is a north star.</strong> The realized surface is the backbone plus a broad vertical slice; the rest is a backlog experiments pull from.</li>
+    </ul>
+    <div class="callout"><div class="h">The bottom line</div><p>The engine is the contribution, and the individual mechanisms are not novel. The claim is a well-built instrument for an under-tooled seam, with an analysis layer few tools have, validated end to end.</p></div>
+  </section>
+
+  </article>
+</div>
+
+<footer>
+  <div class="inner">
+    <h3>AXIOM</h3>
+    <p>A configurable research engine for cellular automata, graphs, and machine learning, in Rust. The configuration space is the research surface.</p>
+    <div class="docs">
+      <a href="README.md">README</a>
+      <a href="TECHNICAL_SPEC.md">Technical spec</a>
+      <a href="MARKET_ANALYSIS.md">Market analysis</a>
+      <a href="ACTION_ITEMS.md">Action items</a>
+    </div>
+    <div class="meta">Read at three depths. Plain is always on; analogy and full layer in from the control at the top.</div>
+  </div>
+</footer>
+
+<script>
+(function(){
+  "use strict";
+  var body = document.body;
+  var segBtns = Array.prototype.slice.call(document.querySelectorAll('.seg button'));
+  function applyLevel(level){
+    body.classList.remove('level-1','level-2','level-3');
+    body.classList.add('level-'+level);
+    segBtns.forEach(function(b){ b.setAttribute('aria-pressed', b.dataset.level === String(level)); });
+    document.querySelectorAll('details.layer.analogy').forEach(function(d){ d.open = level >= 2; });
+    document.querySelectorAll('details.layer.technical').forEach(function(d){ d.open = level >= 3; });
+  }
+  segBtns.forEach(function(b){
+    b.addEventListener('click', function(){ applyLevel(parseInt(b.dataset.level,10)); });
+  });
+  applyLevel(2);
+  var prog = document.getElementById('progress');
+  function onScroll(){
+    var h = document.documentElement;
+    var max = h.scrollHeight - h.clientHeight;
+    prog.style.width = (max > 0 ? (h.scrollTop / max) * 100 : 0) + '%';
+  }
+  document.addEventListener('scroll', onScroll, {passive:true});
+  onScroll();
+  var toc = document.getElementById('toc');
+  var navBtn = document.getElementById('navtoggle');
+  navBtn.addEventListener('click', function(){
+    var open = toc.classList.toggle('open');
+    navBtn.setAttribute('aria-expanded', open);
+  });
+  toc.addEventListener('click', function(e){
+    if(e.target.tagName === 'A'){ toc.classList.remove('open'); navBtn.setAttribute('aria-expanded', false); }
+  });
+  var links = Array.prototype.slice.call(document.querySelectorAll('.toc a'));
+  var map = {};
+  links.forEach(function(a){
+    var id = a.getAttribute('href').slice(1);
+    var el = document.getElementById(id);
+    if(el) map[id] = a;
+  });
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(en){
+      if(en.isIntersecting){
+        links.forEach(function(a){ a.classList.remove('active'); });
+        var a = map[en.target.id];
+        if(a){ a.classList.add('active'); }
+      }
+    });
+  }, {rootMargin:'-20% 0px -70% 0px', threshold:0});
+  Object.keys(map).forEach(function(id){ io.observe(document.getElementById(id)); });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,38 @@
+name: soup
+schema_version: 1
+substrate:
+  kind: grid
+  width: 192
+  height: 192
+  channels: 1
+  topology: torus
+rule:
+  type: lenia
+  dt: 0.1
+  clamp_lo: 0.0
+  clamp_hi: 1.0
+  kernels:
+  - source: 0
+    target: 0
+    radius: 13
+    core: gauss_ring
+    beta:
+    - 1.0
+    core_mu: 0.5
+    core_sigma: 0.15
+    weight: 1.0
+    growth:
+      kind: gauss
+      mu: 0.15
+      sigma: 0.017
+init:
+  type: random
+  density: 0.5
+render:
+  colormap: viridis
+  channel: 0
+  scale: 1.0
+analysis:
+- type: descriptors
+steps: 600
+seed: 7

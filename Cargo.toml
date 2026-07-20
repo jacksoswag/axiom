@@ -1,0 +1,37 @@
+[package]
+name = "axiom"
+version = "0.1.0"
+edition = "2021"
+description = "AXIOM — a configurable research engine for cellular automata × graphs × machine learning"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+rayon = "1"
+image = { version = "0.25", default-features = false, features = ["png"] }
+anyhow = "1"
+minifb = { version = "0.27", optional = true }
+wgpu = { version = "24", optional = true }
+pollster = { version = "0.4", optional = true }
+bytemuck = { version = "1", features = ["derive"], optional = true }
+
+[features]
+default = ["window", "gpu"]
+# The live window pulls in native windowing (minifb). The whole engine —
+# config, rules, analysis, headless PNG render — builds and runs without it.
+window = ["dep:minifb"]
+# GPU compute backend (wgpu). Headless-capable; the engine runs on CPU without it.
+gpu = ["dep:wgpu", "dep:pollster", "dep:bytemuck"]
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+
+[[bin]]
+name = "axiom"
+path = "src/main.rs"
+
+[lib]
+name = "axiom"
+path = "src/lib.rs"
