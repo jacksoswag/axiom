@@ -1,4 +1,4 @@
-# AXIOM — action items
+# AXIOM action items
 
 ## Built
 

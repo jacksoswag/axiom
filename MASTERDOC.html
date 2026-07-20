@@ -394,15 +394,15 @@ footer .meta{margin-top:30px;padding-top:20px;border-top:1px solid rgba(243,236,
 
   <section class="block" id="learning">
     <h3>Learning a rule</h3>
-    <p class="plain">A neural cellular automaton, where the rule is a small network, is fit to imitate a Gray-Scott step using gradient-free evolution strategies. The loss drops cleanly over generations, and the learned rule is then evaluated as a world model: prediction error against the true simulator as a function of how far ahead it rolls.</p>
+    <p class="plain">A neural cellular automaton, where the rule is a small network, is fit to imitate a Gray-Scott step. The default trainer is gradient descent with hand-derived backprop and Adam; evolution strategies are the gradient-free alternative. The loss drops cleanly, and the learned rule is then evaluated as a world model: prediction error against the true simulator as a function of how far ahead it rolls.</p>
     <div class="statgrid">
-      <div class="s"><div class="n">7.7×</div><div class="t">imitation loss reduction over 80 generations</div></div>
-      <div class="s"><div class="n cold">no autodiff</div><div class="t">evolution strategies need only forward passes</div></div>
+      <div class="s"><div class="n">~50×</div><div class="t">imitation loss reduction (Adam; ~8× with evolution strategies)</div></div>
+      <div class="s"><div class="n cold">no framework</div><div class="t">analytic gradients for a 2-layer MLP, no autodiff dependency</div></div>
       <div class="s"><div class="n">→ config</div><div class="t">the trained rule saves as a runnable file</div></div>
     </div>
-    <details class="layer technical"><summary><span class="badge">Full</span><span class="stitle">Antithetic ES + rollout error</span><span class="chev">›</span></summary>
+    <details class="layer technical"><summary><span class="badge">Full</span><span class="stitle">Analytic backprop + rollout error</span><span class="chev">›</span></summary>
       <div class="body">
-        <p>Antithetic finite-difference ES minimizes one-step MSE against the target rule over a batch of on-distribution states. Because it needs only forward passes, there is no autodiff backend. <code>rollout_error</code> then rolls the learned rule and the true rule from the same seed and reports per-step MSE, which grows with horizon in the way a forward world model does.</p>
+        <p>The gradient of the one-step MSE is derived by hand through the residual update, the second linear layer, the relu, and the first layer, accumulated over cells and optimized with Adam. No autodiff backend is needed for a 2-layer MLP. Evolution strategies (antithetic finite difference) remain available. <code>rollout_error</code> then rolls the learned rule and the true rule from the same seed and reports per-step MSE, which grows with horizon in the way a forward world model does.</p>
       </div>
     </details>
   </section>
@@ -426,7 +426,7 @@ footer .meta{margin-top:30px;padding-top:20px;border-top:1px solid rgba(243,236,
     </div>
     <details class="layer technical"><summary><span class="badge">Full</span><span class="stitle">A convex energy over the volume</span><span class="chev">›</span></summary>
       <div class="body">
-        <p>The mode minimizes <code>E = Σ ‖V[t+1] − F(V[t])‖²</code> over the volume with the endpoints fixed, where <code>F</code> is one diffusion step. For a linear <code>F</code> the energy is convex, so gradient descent recovers the true interior. Information flows backward and sideways in time, so there is no rollout-error accumulation. A nonlinear operator makes this non-convex, and convergence stops being free.</p>
+        <p>The mode minimizes <code>E = Σ ‖V[t+1] − F(V[t])‖²</code> over the volume with the endpoints fixed, where <code>F</code> is one reaction-diffusion step. For a linear <code>F</code> the energy is convex, so gradient descent recovers the true interior exactly. Information flows backward and sideways in time, so there is no rollout-error accumulation. A nonlinear Fisher-KPP <code>F</code> is also supported, using the analytic vector-Jacobian product; the energy is then non-convex, relaxation still descends and recovers most of the interior, but convergence is not guaranteed.</p>
       </div>
     </details>
   </section>
@@ -440,13 +440,13 @@ footer .meta{margin-top:30px;padding-top:20px;border-top:1px solid rgba(243,236,
 
   <section class="block" id="gpu">
     <h3>CPU oracle, GPU speed</h3>
-    <p class="plain">The Lenia convolution runs as a headless GPU compute pipeline with one thread per cell and ping-pong buffers, validated to match the CPU result to floating-point precision. The speedup is real but modest, because the naive convolution is memory-bound and the CPU path is already parallel.</p>
+    <p class="plain">The Lenia convolution runs as a headless GPU compute pipeline, validated to match the CPU result to floating-point precision, and is the default execution path for eligible single-kernel Lenia. Each workgroup caches its cell block plus halo in shared memory and convolves out of that tile, which collapses the redundant global reads a direct gather makes.</p>
     <div class="statgrid">
       <div class="s"><div class="n">2.4e-7</div><div class="t">max GPU-vs-CPU difference, one step (Apple M3)</div></div>
-      <div class="s"><div class="n cold">3.6×</div><div class="t">GPU over CPU at 512²</div></div>
-      <div class="s"><div class="n">headless</div><div class="t">no window or surface; runs in CI</div></div>
+      <div class="s"><div class="n cold">7×</div><div class="t">tiled GPU over CPU at 512²</div></div>
+      <div class="s"><div class="n">default</div><div class="t">headless runs on GPU unless the config is ineligible or --cpu is passed</div></div>
     </div>
-    <div class="callout cold"><div class="h">Honest finding</div><p>A naive global-memory GPU convolution only modestly beats an already-parallel CPU. Shared-memory tiling or FFT convolution is the unrealized speed, and it is the first item on the backlog.</p></div>
+    <div class="callout cold"><div class="h">Honest finding</div><p>Even tiled, the GPU is memory-bound and the rayon CPU path is genuinely competitive: ~7× at 512², not orders of magnitude. Multi-kernel / multi-channel GPU and FFT convolution are the remaining backlog. Non-Lenia and multi-channel rules run on CPU.</p></div>
   </section>
 
   <section class="block" id="validation">
