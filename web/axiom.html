@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>AXIOM — live</title>
+<style>
+  :root{
+    --bg:#07080d; --panel:rgba(18,20,32,0.66); --stroke:rgba(255,255,255,0.10);
+    --txt:#e8ecff; --dim:#8b93b8; --accent:#6ea8ff; --accent2:#b98cff;
+    --glow:0 0 24px rgba(110,168,255,0.25);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--txt);
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Inter",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased}
+  #gl{position:fixed;inset:0;width:100vw;height:100vh;display:block;cursor:crosshair}
+  #panel{position:fixed;top:18px;right:18px;width:302px;max-height:calc(100vh - 36px);
+    overflow-y:auto;background:var(--panel);backdrop-filter:blur(22px) saturate(1.4);
+    -webkit-backdrop-filter:blur(22px) saturate(1.4);border:1px solid var(--stroke);
+    border-radius:18px;padding:16px 16px 18px;box-shadow:0 18px 60px rgba(0,0,0,0.5),var(--glow);
+    transition:transform .35s cubic-bezier(.2,.9,.3,1),opacity .3s}
+  #panel.hidden{transform:translateX(120%);opacity:0}
+  #panel::-webkit-scrollbar{width:8px}#panel::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:8px}
+  .brand{display:flex;align-items:baseline;gap:8px;margin-bottom:2px}
+  .brand h1{font-size:20px;font-weight:700;letter-spacing:.14em;
+    background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .brand span{font-size:10.5px;color:var(--dim);letter-spacing:.03em}
+  .sub{font-size:11px;color:var(--dim);margin-bottom:14px;line-height:1.5}
+  .group{margin:14px 0 0}
+  .glabel{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--dim);margin-bottom:8px;font-weight:600}
+  .row{display:flex;gap:8px;margin-bottom:8px}
+  .row.wrap{flex-wrap:wrap}
+  button,select{font-family:inherit;color:var(--txt);background:rgba(255,255,255,.05);
+    border:1px solid var(--stroke);border-radius:11px;padding:9px 11px;font-size:12.5px;cursor:pointer;
+    transition:background .18s,border-color .18s,transform .08s;flex:1;min-width:0}
+  button:hover,select:hover{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.2)}
+  button:active{transform:scale(.96)}
+  button.primary{background:linear-gradient(120deg,rgba(110,168,255,.9),rgba(185,140,255,.9));border-color:transparent;color:#0a0b12;font-weight:650}
+  button.on{background:linear-gradient(120deg,rgba(110,168,255,.9),rgba(185,140,255,.9));border-color:transparent;color:#0a0b12;font-weight:600}
+  select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--dim) 50%),linear-gradient(135deg,var(--dim) 50%,transparent 50%);
+    background-position:calc(100% - 15px) 16px,calc(100% - 10px) 16px;background-size:5px 5px;background-repeat:no-repeat;padding-right:26px}
+  select option{background:#12141f}
+  .slider{margin-bottom:11px}
+  .slider .lab{display:flex;justify-content:space-between;font-size:11.5px;margin-bottom:5px}
+  .slider .lab b{color:var(--txt);font-weight:600}.slider .lab .v{color:var(--accent);font-variant-numeric:tabular-nums;font-weight:600}
+  input[type=range]{-webkit-appearance:none;width:100%;height:5px;border-radius:5px;
+    background:rgba(255,255,255,.12);outline:none}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;height:15px;border-radius:50%;
+    background:#fff;box-shadow:0 0 0 4px rgba(110,168,255,.25),0 2px 6px rgba(0,0,0,.4);cursor:pointer;transition:box-shadow .15s}
+  input[type=range]::-webkit-slider-thumb:hover{box-shadow:0 0 0 6px rgba(110,168,255,.35),0 2px 6px rgba(0,0,0,.4)}
+  .hud{position:fixed;left:18px;bottom:16px;font-size:11px;color:var(--dim);
+    background:var(--panel);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+    border:1px solid var(--stroke);border-radius:12px;padding:9px 13px;display:flex;gap:14px;font-variant-numeric:tabular-nums}
+  .hud b{color:var(--txt);font-weight:600}
+  .hud .dot{color:var(--accent)}
+  #toggle{position:fixed;top:18px;right:18px;width:42px;height:42px;border-radius:12px;display:none;
+    align-items:center;justify-content:center;font-size:18px;z-index:5}
+  .hint{position:fixed;left:18px;top:16px;font-size:11px;color:var(--dim);
+    background:var(--panel);border:1px solid var(--stroke);border-radius:11px;padding:7px 12px;
+    backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);opacity:.9;transition:opacity .4s}
+  .seg{display:flex;background:rgba(255,255,255,.05);border:1px solid var(--stroke);border-radius:11px;overflow:hidden}
+  .seg button{border:none;border-radius:0;background:transparent;flex:1}
+  .seg button.on{background:linear-gradient(120deg,rgba(110,168,255,.9),rgba(185,140,255,.9));color:#0a0b12}
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<div class="hint" id="hint">drag on the field to seed · scroll to zoom in 3D</div>
+<button id="toggle" title="controls">⚙</button>
+<div id="panel">
+  <div class="brand"><h1>AXIOM</h1><span>live · webgl</span></div>
+  <div class="sub">A configurable CA × graph × ML engine. This is the interactive visualizer — every knob is live.</div>
+
+  <div class="group">
+    <div class="glabel">Preset</div>
+    <select id="preset"></select>
+  </div>
+
+  <div class="group">
+    <div class="glabel">View</div>
+    <div class="seg" id="viewseg">
+      <button data-v="2d" class="on">2D field</button>
+      <button data-v="3d">3D surface</button>
+    </div>
+  </div>
+
+  <div class="group">
+    <div class="glabel">Transport</div>
+    <div class="row">
+      <button id="play" class="primary">❚❚ Pause</button>
+      <button id="reset">↺ Reset</button>
+      <button id="rand">✦ Seed</button>
+    </div>
+  </div>
+
+  <div class="group">
+    <div class="glabel">Dynamics</div>
+    <div class="slider" data-k="mu"><div class="lab"><b>growth μ</b><span class="v"></span></div><input type="range" id="mu" min="0.02" max="0.40" step="0.001"></div>
+    <div class="slider" data-k="sigma"><div class="lab"><b>growth σ</b><span class="v"></span></div><input type="range" id="sigma" min="0.004" max="0.10" step="0.0005"></div>
+    <div class="slider" data-k="dt"><div class="lab"><b>timestep dt</b><span class="v"></span></div><input type="range" id="dt" min="0.02" max="0.5" step="0.005"></div>
+    <div class="slider" data-k="radius"><div class="lab"><b>kernel radius</b><span class="v"></span></div><input type="range" id="radius" min="3" max="15" step="1"></div>
+    <div class="slider" data-k="speed"><div class="lab"><b>steps / frame</b><span class="v"></span></div><input type="range" id="speed" min="1" max="8" step="1"></div>
+  </div>
+
+  <div class="group" id="gsgroup" style="display:none">
+    <div class="glabel">Reaction-diffusion</div>
+    <div class="slider" data-k="feed"><div class="lab"><b>feed</b><span class="v"></span></div><input type="range" id="feed" min="0.01" max="0.09" step="0.0005"></div>
+    <div class="slider" data-k="kill"><div class="lab"><b>kill</b><span class="v"></span></div><input type="range" id="kill" min="0.04" max="0.075" step="0.0005"></div>
+  </div>
+
+  <div class="group">
+    <div class="glabel">Look</div>
+    <div class="row"><select id="cmap">
+      <option value="0">Turbo</option><option value="1">Viridis</option><option value="2">Magma</option>
+      <option value="3">Inferno</option><option value="4">Plasma</option><option value="5">Ice</option><option value="6">Mono</option>
+    </select></div>
+    <div class="slider" data-k="res"><div class="lab"><b>sim resolution</b><span class="v"></span></div><input type="range" id="res" min="192" max="768" step="64"></div>
+    <div class="slider" data-k="height" id="heightslider" style="display:none"><div class="lab"><b>3D height</b><span class="v"></span></div><input type="range" id="height" min="0.05" max="1.2" step="0.02"></div>
+  </div>
+</div>
+<div class="hud">
+  <span><span class="dot">●</span> <b id="hudname">soup</b></span>
+  <span>step <b id="hudstep">0</b></span>
+  <span><b id="hudfps">60</b> fps</span>
+  <span><b id="hudres">384²</b></span>
+</div>
+
+<script>
+"use strict";
+const cv = document.getElementById('gl');
+const gl = cv.getContext('webgl2', {antialias:false, premultipliedAlpha:false, powerPreference:'high-performance'});
+if(!gl){ document.body.innerHTML = '<div style="padding:40px;font-family:system-ui;color:#e8ecff">WebGL2 unavailable in this browser.</div>'; throw new Error('no webgl2'); }
+gl.getExtension('EXT_color_buffer_float');
+gl.getExtension('OES_texture_float_linear');
+
+// ---------- shader helpers ----------
+function sh(type, src){ const s=gl.createShader(type); gl.shaderSource(s,src); gl.compileShader(s);
+  if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)) throw new Error('shader: '+gl.getShaderInfoLog(s)+'\n'+src); return s; }
+function prog(vs, fs){ const p=gl.createProgram(); gl.attachShader(p,sh(gl.VERTEX_SHADER,vs)); gl.attachShader(p,sh(gl.FRAGMENT_SHADER,fs));
+  gl.linkProgram(p); if(!gl.getProgramParameter(p,gl.LINK_STATUS)) throw new Error('link: '+gl.getProgramInfoLog(p)); return p; }
+
+const VS_QUAD = `#version 300 es
+out vec2 uv;
+void main(){ vec2 p=vec2(float((gl_VertexID&1)<<2)-1.0, float((gl_VertexID&2)<<1)-1.0);
+  uv=p*0.5+0.5; gl_Position=vec4(p,0,1); }`;
+
+const COLORMAPS = `
+vec3 cmap(int m, float t){ t=clamp(t,0.0,1.0);
+  if(m==0){ // turbo
+    vec3 a=vec3(0.13572,0.09140,0.10667),b=vec3(4.6153,2.4287,12.226),c=vec3(-42.66,4.775,-89.90);
+    vec3 d=vec3(132.13,-14.18,222.95),e=vec3(-152.94,4.775,-238.24),f=vec3(59.28,2.828,83.35);
+    return clamp(a+t*(b+t*(c+t*(d+t*(e+t*f)))),0.0,1.0); }
+  if(m==1){ return clamp(vec3(0.28+0.1*t-0.9*t*t+1.6*t*t*t, 0.02+1.7*t-0.9*t*t, 0.33+0.6*t-2.6*t*t+2.0*t*t*t),0.0,1.0); }
+  if(m==2){ return clamp(vec3(pow(t,0.9), t*t*0.75, 0.35*t+0.4*t*t*t),0.0,1.0)*vec3(1.05,0.75,1.1)+vec3(0.0,0.0,0.05); }
+  if(m==3){ return clamp(vec3(pow(t,0.7), t*t*t*0.9+0.05*t, t*t*t*t*0.6),0.0,1.0); }
+  if(m==4){ return clamp(vec3(0.05+1.2*t, 0.02+0.3*t+0.4*t*t*t, 0.55+0.5*t-1.2*t*t+0.4*t*t*t),0.0,1.0); }
+  if(m==5){ return clamp(vec3(0.05+0.25*t+0.4*t*t, 0.1+0.7*t, 0.25+0.75*t),0.0,1.0); }
+  return vec3(t);
+}`;
+
+// Lenia update
+const FS_LENIA = `#version 300 es
+precision highp float;
+in vec2 uv; out vec4 outC;
+uniform sampler2D st; uniform vec2 texel; uniform float mu,sigma,dt,radius;
+float bell(float x,float m,float s){ float d=(x-m)/s; return exp(-0.5*d*d); }
+void main(){
+  const int R=15; float sum=0.0,wsum=0.0;
+  for(int dy=-R;dy<=R;dy++){ for(int dx=-R;dx<=R;dx++){
+    float dist=length(vec2(float(dx),float(dy)));
+    if(dist>radius) continue;
+    float w=bell(dist/radius,0.5,0.15);
+    sum += texture(st, uv+vec2(float(dx),float(dy))*texel).r * w; wsum+=w;
+  }}
+  float U = sum/max(wsum,1e-9);
+  float G = 2.0*bell(U,mu,sigma)-1.0;
+  float a = clamp(texture(st,uv).r + dt*G, 0.0, 1.0);
+  outC = vec4(a,a,a,1.0);
+}`;
+
+// Gray-Scott update (u in r, v in g)
+const FS_GS = `#version 300 es
+precision highp float;
+in vec2 uv; out vec4 outC;
+uniform sampler2D st; uniform vec2 texel; uniform float feed,kill,dt;
+void main(){
+  vec2 c=texture(st,uv).rg;
+  vec2 l = texture(st,uv+vec2(-texel.x,0)).rg + texture(st,uv+vec2(texel.x,0)).rg
+         + texture(st,uv+vec2(0,-texel.y)).rg + texture(st,uv+vec2(0,texel.y)).rg
+         + 0.5*(texture(st,uv+vec2(-texel.x,-texel.y)).rg+texture(st,uv+vec2(texel.x,-texel.y)).rg
+              +texture(st,uv+vec2(-texel.x,texel.y)).rg+texture(st,uv+vec2(texel.x,texel.y)).rg)
+         - 6.0*c;
+  l /= 6.0;
+  float uu=c.r, vv=c.g, r=uu*vv*vv;
+  float nu=clamp(uu + (0.16*l.r - r + feed*(1.0-uu))*dt, 0.0, 1.0);
+  float nv=clamp(vv + (0.08*l.g + r - (kill+feed)*vv)*dt, 0.0, 1.0);
+  outC=vec4(nu,nv,0.0,1.0);
+}`;
+
+// brush (additive seed)
+const FS_BRUSH = `#version 300 es
+precision highp float;
+in vec2 uv; out vec4 outC;
+uniform sampler2D st; uniform vec2 bpos; uniform float brad, bamp; uniform int isgs;
+void main(){ vec4 c=texture(st,uv); float d=distance(uv,bpos);
+  float g=exp(-d*d/(brad*brad))*bamp;
+  if(isgs==1){ outC=vec4(clamp(c.r-g*0.6,0.0,1.0), clamp(c.g+g,0.0,1.0),0.0,1.0); }
+  else { float a=clamp(c.r+g,0.0,1.0); outC=vec4(a,a,a,1.0); } }`;
+
+// 2D display
+const FS_DISP = `#version 300 es
+precision highp float;
+in vec2 uv; out vec4 outC; uniform sampler2D st; uniform int cmapId; uniform int isgs;
+${COLORMAPS}
+void main(){ float t = isgs==1 ? texture(st,uv).g*2.4 : texture(st,uv).r;
+  vec3 col=cmap(cmapId,t);
+  col += col*col*0.35; // gentle bloom
+  outC=vec4(col,1.0); }`;
+
+// 3D heightfield
+const VS_HEIGHT = `#version 300 es
+precision highp float;
+uniform sampler2D st; uniform mat4 mvp; uniform float hscale; uniform int isgs; uniform vec2 texel;
+out float vh; out vec3 vn;
+void main(){
+  int N=256; int id=gl_VertexID; int x=id%N; int y=id/N;
+  vec2 g=vec2(float(x)/float(N-1), float(y)/float(N-1));
+  float h = isgs==1 ? texture(st,g).g*2.2 : texture(st,g).r;
+  float hx1=(isgs==1?texture(st,g+vec2(texel.x,0)).g:texture(st,g+vec2(texel.x,0)).r);
+  float hx0=(isgs==1?texture(st,g-vec2(texel.x,0)).g:texture(st,g-vec2(texel.x,0)).r);
+  float hy1=(isgs==1?texture(st,g+vec2(0,texel.y)).g:texture(st,g+vec2(0,texel.y)).r);
+  float hy0=(isgs==1?texture(st,g-vec2(0,texel.y)).g:texture(st,g-vec2(0,texel.y)).r);
+  vn = normalize(vec3((hx0-hx1)*hscale, 0.06, (hy0-hy1)*hscale));
+  vh = h;
+  vec3 pos = vec3((g.x-0.5)*2.0, h*hscale, (g.y-0.5)*2.0);
+  gl_Position = mvp*vec4(pos,1.0);
+}`;
+const FS_HEIGHT = `#version 300 es
+precision highp float;
+in float vh; in vec3 vn; out vec4 outC; uniform int cmapId;
+${COLORMAPS}
+void main(){ vec3 L=normalize(vec3(0.4,0.9,0.3));
+  float dif=0.35+0.65*max(dot(normalize(vn),L),0.0);
+  vec3 col=cmap(cmapId,vh)*dif; col+=col*col*0.4;
+  outC=vec4(col,1.0); }`;
+
+const pLenia=prog(VS_QUAD,FS_LENIA), pGS=prog(VS_QUAD,FS_GS), pBrush=prog(VS_QUAD,FS_BRUSH),
+      pDisp=prog(VS_QUAD,FS_DISP), pHeight=prog(VS_HEIGHT,FS_HEIGHT);
+const vao=gl.createVertexArray();
+// indexed triangle mesh for the 3D heightfield (gl_VertexID drives position)
+const HN=256, HCOUNT=(HN-1)*(HN-1)*6, heightVAO=gl.createVertexArray();
+(function(){ const idx=new Uint32Array(HCOUNT); let p=0;
+  for(let y=0;y<HN-1;y++)for(let x=0;x<HN-1;x++){ const v=y*HN+x;
+    idx[p++]=v; idx[p++]=v+1; idx[p++]=v+HN; idx[p++]=v+1; idx[p++]=v+HN+1; idx[p++]=v+HN; }
+  gl.bindVertexArray(heightVAO); const eb=gl.createBuffer();
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,eb); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,idx,gl.STATIC_DRAW);
+  gl.bindVertexArray(null); })();
+
+// ---------- ping-pong state ----------
+let RESX=680, RESY=384, texA,texB,fboA,fboB;
+function mkTex(w,h){ const t=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,t);
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA16F,w,h,0,gl.RGBA,gl.HALF_FLOAT,null);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.REPEAT);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.REPEAT); return t; }
+function mkFbo(t){ const f=gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER,f);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,t,0); return f; }
+function allocState(resY){ RESY=Math.max(64,resY|0);
+  const w=innerWidth||cv.clientWidth||document.documentElement.clientWidth||1600;
+  const h=innerHeight||cv.clientHeight||document.documentElement.clientHeight||900;
+  RESX=Math.max(64,Math.round(RESY*(w/h)/8)*8);
+  texA=mkTex(RESX,RESY); texB=mkTex(RESX,RESY); fboA=mkFbo(texA); fboB=mkFbo(texB); }
+
+// ---------- presets ----------
+const ORB = [[0,0,0,0,0,0,.1,.14,.1,0,0,.03,.03,0,0,.3,0,0,0,0],[0,0,0,0,0,.08,.24,.3,.3,.18,.14,.15,.16,.15,.09,.2,0,0,0,0],[0,0,0,0,0,.15,.34,.44,.46,.38,.18,.14,.11,.13,.19,.18,.45,0,0,0],[0,0,0,0,.06,.13,.39,.5,.5,.37,.06,0,0,0,.02,.16,.68,0,0,0],[0,0,0,.11,.17,.17,.33,.4,.38,.28,.14,0,0,0,0,0,.18,.42,0,0],[0,0,.09,.18,.13,.06,.08,.26,.32,.32,.27,0,0,0,0,0,0,.82,0,0],[.27,0,.16,.12,0,0,0,.25,.38,.44,.45,.34,0,0,0,0,0,.22,.17,0],[0,.07,.2,.02,0,0,0,.31,.48,.57,.6,.57,0,0,0,0,0,0,.49,0],[0,.59,.19,0,0,0,0,.2,.57,.69,.76,.76,.49,0,0,0,0,0,.36,0],[0,.58,.19,0,0,0,0,0,.67,.83,.9,.92,.87,.12,0,0,0,0,.22,.07],[0,0,.46,0,0,0,0,0,.7,.93,1,1,1,.61,0,0,0,0,.18,.11],[0,0,.82,0,0,0,0,0,.47,1,1,.98,1,.96,.27,0,0,0,.19,.1],[0,0,.46,0,0,0,0,0,.25,1,1,.84,.92,.97,.54,.14,.04,.1,.21,.05],[0,0,0,.4,0,0,0,0,.09,.8,1,.82,.8,.85,.63,.31,.18,.19,.2,.01],[0,0,0,.36,.1,0,0,0,.05,.54,.86,.79,.74,.72,.6,.39,.28,.24,.13,0],[0,0,0,.01,.3,.07,0,0,.08,.36,.64,.7,.64,.6,.51,.39,.29,.19,.04,0],[0,0,0,0,.1,.24,.14,.1,.15,.29,.45,.53,.52,.46,.4,.31,.21,.08,0,0],[0,0,0,0,0,.08,.21,.21,.22,.29,.36,.39,.37,.33,.26,.18,.09,0,0,0],[0,0,0,0,0,0,.03,.13,.19,.22,.24,.24,.23,.18,.13,.05,0,0,0,0],[0,0,0,0,0,0,0,0,.02,.06,.08,.09,.07,.05,.01,0,0,0,0,0]];
+const PRESETS = {
+  soup:    {label:'Lenia soup',        type:'lenia', mu:.15, sigma:.017, dt:.12, radius:13, cmap:0, seed:'random'},
+  orbium:  {label:'Orbium gliders',    type:'lenia', mu:.15, sigma:.015, dt:.1,  radius:13, cmap:1, seed:'orbium'},
+  fine:    {label:'Fine coral (Lenia)',type:'lenia', mu:.26, sigma:.055, dt:.14, radius:10, cmap:3, seed:'random'},
+  worms:   {label:'Worms (Lenia)',     type:'lenia', mu:.29, sigma:.046, dt:.12, radius:12, cmap:4, seed:'random'},
+  coral:   {label:'Gray-Scott coral',  type:'gs', feed:.0545, kill:.062, dt:1.0, cmap:2, seed:'gs'},
+  mitosis: {label:'Gray-Scott mitosis',type:'gs', feed:.0367, kill:.0649,dt:1.0, cmap:0, seed:'gs'},
+  laby:    {label:'Gray-Scott maze',   type:'gs', feed:.039,  kill:.058, dt:1.0, cmap:5, seed:'gs'},
+};
+
+let S = { name:'soup', type:'lenia', mu:.15, sigma:.017, dt:.12, radius:13, feed:.0545, kill:.062,
+          cmap:0, speed:2, res:384, height:0.42, view:'2d', playing:true, step:0 };
+
+function seedRandom(){ const buf=new Float32Array(RESX*RESY*4);
+  for(let i=0;i<RESX*RESY;i++){ const v=Math.random()<0.5?Math.random():0;
+    buf[i*4]=v;buf[i*4+1]=v;buf[i*4+2]=v;buf[i*4+3]=1; }
+  upload(buf); }
+function seedOrbium(){ const buf=new Float32Array(RESX*RESY*4);
+  const count=Math.max(6,Math.round(RESX*RESY/12000));
+  for(let k=0;k<count;k++){ const oy=(Math.random()*RESY)|0, ox=(Math.random()*RESX)|0;
+    for(let y=0;y<20;y++)for(let x=0;x<20;x++){ const gy=(oy+y)%RESY, gx=(ox+x)%RESX, i=(gy*RESX+gx)*4;
+      const v=Math.min(1,buf[i]+ORB[y][x]); buf[i]=v;buf[i+1]=v;buf[i+2]=v;buf[i+3]=1; } }
+  upload(buf); }
+function seedGS(){ const buf=new Float32Array(RESX*RESY*4);
+  for(let i=0;i<RESX*RESY;i++){ buf[i*4]=1; buf[i*4+3]=1; }
+  const spots=Math.max(14,Math.round(RESX*RESY/8000));
+  for(let s=0;s<spots;s++){ const cy=(Math.random()*RESY)|0, cx=(Math.random()*RESX)|0;
+    for(let dy=-6;dy<=6;dy++)for(let dx=-6;dx<=6;dx++){ const gy=((cy+dy)%RESY+RESY)%RESY, gx=((cx+dx)%RESX+RESX)%RESX, i=(gy*RESX+gx)*4;
+      buf[i]=0.5; buf[i+1]=0.28+0.02*(Math.random()-0.5); } }
+  upload(buf); }
+function upload(buf){ gl.bindTexture(gl.TEXTURE_2D,texA);
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA16F,RESX,RESY,0,gl.RGBA,gl.FLOAT,buf); }
+function reseed(){ S.step=0; if(S.seed==='orbium')seedOrbium(); else if(S.seed==='gs')seedGS(); else seedRandom(); }
+
+// ---------- sim + render ----------
+function simStep(){ const isgs=S.type==='gs';
+  gl.viewport(0,0,RESX,RESY); gl.bindVertexArray(vao);
+  gl.bindFramebuffer(gl.FRAMEBUFFER,fboB);
+  const p = isgs?pGS:pLenia; gl.useProgram(p);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,texA);
+  gl.uniform1i(gl.getUniformLocation(p,'st'),0);
+  gl.uniform2f(gl.getUniformLocation(p,'texel'),1/RESX,1/RESY);
+  gl.uniform1f(gl.getUniformLocation(p,'dt'),S.dt);
+  if(isgs){ gl.uniform1f(gl.getUniformLocation(p,'feed'),S.feed); gl.uniform1f(gl.getUniformLocation(p,'kill'),S.kill); }
+  else { gl.uniform1f(gl.getUniformLocation(p,'mu'),S.mu); gl.uniform1f(gl.getUniformLocation(p,'sigma'),S.sigma); gl.uniform1f(gl.getUniformLocation(p,'radius'),S.radius); }
+  gl.drawArrays(gl.TRIANGLES,0,3);
+  [texA,texB]=[texB,texA]; [fboA,fboB]=[fboB,fboA]; S.step++;
+}
+function brush(ux,uy,amp){ const isgs=S.type==='gs';
+  gl.viewport(0,0,RESX,RESY); gl.bindVertexArray(vao);
+  gl.bindFramebuffer(gl.FRAMEBUFFER,fboB); gl.useProgram(pBrush);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,texA);
+  gl.uniform1i(gl.getUniformLocation(pBrush,'st'),0);
+  gl.uniform2f(gl.getUniformLocation(pBrush,'bpos'),ux,uy);
+  gl.uniform1f(gl.getUniformLocation(pBrush,'brad'),0.045);
+  gl.uniform1f(gl.getUniformLocation(pBrush,'bamp'),amp);
+  gl.uniform1i(gl.getUniformLocation(pBrush,'isgs'),isgs?1:0);
+  gl.drawArrays(gl.TRIANGLES,0,3);
+  [texA,texB]=[texB,texA]; [fboA,fboB]=[fboB,fboA];
+}
+// matrices
+function perspective(f,a,n,fr){ const t=1/Math.tan(f/2); return [t/a,0,0,0, 0,t,0,0, 0,0,(fr+n)/(n-fr),-1, 0,0,2*fr*n/(n-fr),0]; }
+function mul(a,b){ const o=new Array(16); for(let i=0;i<4;i++)for(let j=0;j<4;j++){let s=0;for(let k=0;k<4;k++)s+=a[k*4+j]*b[i*4+k];o[i*4+j]=s;} return o; }
+function lookAt(e,c,u){ const z=norm(sub(e,c)),x=norm(cross(u,z)),y=cross(z,x);
+  return [x[0],y[0],z[0],0, x[1],y[1],z[1],0, x[2],y[2],z[2],0, -dot(x,e),-dot(y,e),-dot(z,e),1]; }
+const sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]], cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],
+      dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2], norm=a=>{const l=Math.hypot(a[0],a[1],a[2])||1;return[a[0]/l,a[1]/l,a[2]/l];};
+let cam={az:0.7, el:0.62, dist:3.4, auto:true};
+
+function render(){ const isgs=S.type==='gs';
+  gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+  if(S.view==='3d'){
+    gl.viewport(0,0,cv.width,cv.height); gl.enable(gl.DEPTH_TEST);
+    gl.clearColor(0.027,0.031,0.051,1); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+    const ce=Math.cos(cam.el),eye=[Math.cos(cam.az)*ce*cam.dist, Math.sin(cam.el)*cam.dist, Math.sin(cam.az)*ce*cam.dist];
+    const mvp=mul(perspective(0.9,cv.width/cv.height,0.05,50),lookAt(eye,[0,0,0],[0,1,0]));
+    gl.useProgram(pHeight); gl.bindVertexArray(heightVAO);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,texA);
+    gl.uniform1i(gl.getUniformLocation(pHeight,'st'),0);
+    gl.uniformMatrix4fv(gl.getUniformLocation(pHeight,'mvp'),false,new Float32Array(mvp));
+    gl.uniform1f(gl.getUniformLocation(pHeight,'hscale'),S.height);
+    gl.uniform1i(gl.getUniformLocation(pHeight,'cmapId'),S.cmap);
+    gl.uniform1i(gl.getUniformLocation(pHeight,'isgs'),isgs?1:0);
+    gl.uniform2f(gl.getUniformLocation(pHeight,'texel'),1/RESX,1/RESY);
+    gl.drawElements(gl.TRIANGLES,HCOUNT,gl.UNSIGNED_INT,0);
+  } else {
+    gl.disable(gl.DEPTH_TEST); gl.viewport(0,0,cv.width,cv.height);
+    gl.useProgram(pDisp); gl.bindVertexArray(vao);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,texA);
+    gl.uniform1i(gl.getUniformLocation(pDisp,'st'),0);
+    gl.uniform1i(gl.getUniformLocation(pDisp,'cmapId'),S.cmap);
+    gl.uniform1i(gl.getUniformLocation(pDisp,'isgs'),isgs?1:0);
+    gl.drawArrays(gl.TRIANGLES,0,3);
+  }
+}
+
+// ---------- loop ----------
+let last=performance.now(), fps=60, acc=0, frames=0;
+function frame(now){ requestAnimationFrame(frame);
+  const dtms=now-last; last=now; frames++; acc+=dtms;
+  if(acc>400){ fps=Math.round(1000*frames/acc); frames=0; acc=0; hudfps.textContent=fps; }
+  if(S.playing){ for(let i=0;i<S.speed;i++) simStep(); }
+  if(S.view==='3d'&&cam.auto) cam.az+=0.0032;
+  render();
+  hudstep.textContent=S.step;
+}
+
+// ---------- resize ----------
+const VW=()=>cv.clientWidth||document.documentElement.clientWidth||innerWidth||1600;
+const VH=()=>cv.clientHeight||document.documentElement.clientHeight||innerHeight||900;
+function fitCanvas(){ const dpr=Math.min(window.devicePixelRatio||1,2);
+  cv.width=Math.floor(VW()*dpr); cv.height=Math.floor(VH()*dpr); }
+let rsT=0;
+addEventListener('resize',()=>{ fitCanvas(); clearTimeout(rsT); rsT=setTimeout(()=>{ allocState(S.res); reseed(); },260); });
+
+// ---------- UI ----------
+const $=id=>document.getElementById(id);
+function fillPresets(){ const sel=$('preset'); sel.innerHTML='';
+  for(const k in PRESETS){ const o=document.createElement('option'); o.value=k; o.textContent=PRESETS[k].label; sel.appendChild(o); } sel.value='soup'; }
+function applyPreset(k){ const p=PRESETS[k]; S.name=k; S.type=p.type; S.cmap=p.cmap; S.seed=p.seed;
+  if(p.type==='lenia'){ S.mu=p.mu;S.sigma=p.sigma;S.dt=p.dt;S.radius=p.radius; }
+  else { S.feed=p.feed;S.kill=p.kill;S.dt=p.dt; }
+  $('gsgroup').style.display = p.type==='gs'?'block':'none';
+  $('cmap').value=String(p.cmap); syncSliders(); hudname.textContent=k; reseed(); }
+function syncSliders(){ const set=(id,v,fmt)=>{ const el=$(id); if(!el)return; el.value=v;
+    el.closest('.slider').querySelector('.v').textContent=fmt(v); };
+  set('mu',S.mu,v=>(+v).toFixed(3)); set('sigma',S.sigma,v=>(+v).toFixed(4)); set('dt',S.dt,v=>(+v).toFixed(2));
+  set('radius',S.radius,v=>v); set('speed',S.speed,v=>v); set('res',S.res,v=>v);
+  set('feed',S.feed,v=>(+v).toFixed(4)); set('kill',S.kill,v=>(+v).toFixed(4)); set('height',S.height,v=>(+v).toFixed(2));
+  hudres.textContent=RESX+'×'+RESY; }
+function bindSlider(id,key,parse){ $(id).addEventListener('input',e=>{ S[key]=parse(e.target.value);
+    e.target.closest('.slider').querySelector('.v').textContent=($(id).id==='radius'||$(id).id==='speed'||$(id).id==='res')?e.target.value:(+e.target.value).toFixed($(id).id==='sigma'||$(id).id==='feed'||$(id).id==='kill'?4:($(id).id==='dt'||$(id).id==='height'?2:3));
+    if(key==='res'&&S.res!==RESY){ allocState(S.res); reseed(); } hudres.textContent=RESX+'×'+RESY; }); }
+$('play').addEventListener('click',()=>{ S.playing=!S.playing; $('play').innerHTML=S.playing?'❚❚ Pause':'▶ Play'; });
+$('reset').addEventListener('click',reseed);
+$('rand').addEventListener('click',reseed);
+$('preset').addEventListener('change',e=>applyPreset(e.target.value));
+$('cmap').addEventListener('change',e=>S.cmap=+e.target.value);
+document.querySelectorAll('#viewseg button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('#viewseg button').forEach(x=>x.classList.remove('on')); b.classList.add('on');
+  S.view=b.dataset.v; $('heightslider').style.display=S.view==='3d'?'block':'none'; }));
+bindSlider('mu','mu',parseFloat); bindSlider('sigma','sigma',parseFloat); bindSlider('dt','dt',parseFloat);
+bindSlider('radius','radius',v=>+v); bindSlider('speed','speed',v=>+v); bindSlider('res','res',v=>+v);
+bindSlider('feed','feed',parseFloat); bindSlider('kill','kill',parseFloat); bindSlider('height','height',parseFloat);
+$('toggle').addEventListener('click',()=>$('panel').classList.toggle('hidden'));
+
+// mouse: paint in 2D, orbit in 3D
+let dragging=false, lastx=0,lasty=0;
+cv.addEventListener('pointerdown',e=>{ dragging=true; lastx=e.clientX;lasty=e.clientY;
+  if(S.view==='2d') brush(e.clientX/VW(), 1-e.clientY/VH(), S.type==='gs'?1.0:0.9); });
+cv.addEventListener('pointermove',e=>{ if(!dragging)return;
+  if(S.view==='2d'){ brush(e.clientX/VW(), 1-e.clientY/VH(), S.type==='gs'?1.0:0.9); }
+  else { cam.auto=false; cam.az-=(e.clientX-lastx)*0.008; cam.el=Math.max(0.05,Math.min(1.5,cam.el+(e.clientY-lasty)*0.006)); }
+  lastx=e.clientX;lasty=e.clientY; });
+addEventListener('pointerup',()=>dragging=false);
+cv.addEventListener('wheel',e=>{ if(S.view==='3d'){ e.preventDefault(); cam.dist=Math.max(1.6,Math.min(8,cam.dist+e.deltaY*0.003)); }},{passive:false});
+setTimeout(()=>$('hint').style.opacity='0',5000);
+
+// ---------- boot ----------
+fitCanvas(); allocState(S.res); fillPresets(); syncSliders(); applyPreset('soup');
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
