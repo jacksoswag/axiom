@@ -1,0 +1,20 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # Headless build: the whole engine minus the native window/GPU features,
+      # which need a display and a GPU adapter CI does not have.
+      - name: Build (headless)
+        run: cargo build --no-default-features --release
+      - name: Validate every subsystem
+        run: cargo run --no-default-features --release -- validate
