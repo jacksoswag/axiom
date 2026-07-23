@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AXIOM: the masterdoc</title>
+<meta name="description" content="A search for persistent, explorable three-dimensional Particle-Lenia worlds. Read it at three depths: plain, analogy, and technical.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&amp;family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f7f3ea; --paper-2:#efe8d9; --card:#fbf8f1;
+  --ink:#1c1814; --muted:#6b6256; --faint:#938977;
+  --line:rgba(28,24,20,.12); --line-2:rgba(28,24,20,.22);
+  --accent:#b45309; --accent-bright:#e08a1e; --accent-soft:rgba(180,83,9,.10);
+  --cold:#51607a; --cold-soft:rgba(81,96,122,.12);
+  --good:#4d7c4a; --bad:#a23b2e;
+  --dark:#16130f; --on-dark:#f3ecde; --on-dark-mute:#b3a892;
+  --serif:'Fraunces','Iowan Old Style',Georgia,'Times New Roman',serif;
+  --sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+  --col:min(720px,92vw);
+  --r:14px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{
+  margin:0;background:var(--paper);color:var(--ink);
+  font-family:var(--sans);font-size:17.5px;line-height:1.62;
+  font-feature-settings:"kern","liga","calt";text-rendering:optimizeLegibility;
+}
+::selection{background:var(--accent);color:#fff}
+
+/* ---------- reading progress ---------- */
+#progress{position:fixed;top:0;left:0;height:3px;width:0;z-index:120;
+  background:linear-gradient(90deg,var(--accent),var(--accent-bright));transition:width .12s linear}
+
+/* ---------- top bar ---------- */
+.topbar{position:sticky;top:0;z-index:100;background:rgba(247,243,234,.86);
+  backdrop-filter:saturate(140%) blur(12px);border-bottom:1px solid var(--line);}
+.topbar .inner{max-width:1180px;margin:0 auto;display:flex;align-items:center;gap:18px;
+  padding:11px clamp(14px,3vw,28px);}
+.brand{display:flex;align-items:center;gap:10px;font-weight:600;letter-spacing:-.01em;white-space:nowrap}
+.brand .dot{width:11px;height:11px;border-radius:50%;background:var(--accent);
+  box-shadow:0 0 0 3px var(--accent-soft)}
+.brand b{font-family:var(--mono);font-weight:600;font-size:.94em}
+.topbar .spacer{flex:1}
+.levelctl{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.levelctl .lbl{font-size:.7rem;text-transform:uppercase;letter-spacing:.13em;color:var(--faint);font-weight:600}
+.seg{display:inline-flex;background:var(--paper-2);border:1px solid var(--line);border-radius:999px;padding:3px}
+.seg button{border:0;background:transparent;font:inherit;font-size:.8rem;font-weight:500;color:var(--muted);
+  padding:5px 13px;border-radius:999px;cursor:pointer;transition:.18s;white-space:nowrap;line-height:1.1}
+.seg button:hover{color:var(--ink)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.navtoggle{display:none}
+
+/* ---------- layout ---------- */
+.layout{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:248px minmax(0,1fr);
+  gap:clamp(20px,4vw,56px);padding:0 clamp(14px,3vw,28px)}
+.toc{position:sticky;top:74px;align-self:start;max-height:calc(100vh - 92px);overflow:auto;
+  padding:26px 0 40px;font-size:.86rem}
+.toc h4{margin:0 0 10px;font-size:.68rem;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);font-weight:700}
+.toc ol{list-style:none;margin:0 0 20px;padding:0;border-left:1px solid var(--line)}
+.toc li a{display:block;padding:4px 0 4px 14px;margin-left:-1px;color:var(--muted);text-decoration:none;
+  border-left:2px solid transparent;transition:.15s;line-height:1.35}
+.toc li a:hover{color:var(--ink)}
+.toc li a.active{color:var(--accent);border-left-color:var(--accent);font-weight:600}
+.toc .part{font-family:var(--serif);font-size:.78rem;letter-spacing:.04em;color:var(--faint);
+  text-transform:uppercase;margin:18px 0 6px;padding-left:14px;font-weight:600}
+
+article{padding:0 0 90px;min-width:0}
+article>*{max-width:var(--col)}
+article .wide{max-width:min(980px,100%)}
+
+/* ---------- hero ---------- */
+.hero{max-width:none!important;background:var(--dark);color:var(--on-dark);
+  margin:0 calc(-1*clamp(14px,3vw,28px)) 0;padding:clamp(54px,9vw,104px) clamp(20px,5vw,64px) clamp(46px,7vw,78px);
+  border-radius:0 0 var(--r) var(--r);position:relative;overflow:hidden}
+.hero .grid-bg{position:absolute;inset:0;opacity:.5;pointer-events:none;
+  background-image:linear-gradient(rgba(243,236,222,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(243,236,222,.05) 1px,transparent 1px);
+  background-size:34px 34px;mask-image:radial-gradient(ellipse 80% 70% at 70% 0%,#000,transparent)}
+.hero .kicker{font-family:var(--mono);font-size:.74rem;letter-spacing:.22em;text-transform:uppercase;
+  color:var(--accent-bright);margin:0 0 20px;position:relative}
+.hero h1{font-family:var(--serif);font-weight:600;font-size:clamp(2.5rem,7vw,4.7rem);line-height:1.02;
+  letter-spacing:-.02em;margin:0 0 .5em;max-width:16ch;position:relative}
+.hero h1 em{font-style:italic;color:var(--accent-bright)}
+.hero .lede{font-size:clamp(1.05rem,2.2vw,1.32rem);line-height:1.5;color:var(--on-dark);max-width:46ch;
+  margin:0 0 2em;position:relative}
+.hero .lede b{color:#fff;font-weight:600}
+.hero .stats{display:flex;flex-wrap:wrap;gap:clamp(20px,4vw,52px);position:relative}
+.hero .stat .n{font-family:var(--serif);font-size:clamp(1.8rem,4vw,2.7rem);font-weight:600;line-height:1;color:var(--accent-bright)}
+.hero .stat .t{font-size:.82rem;color:var(--on-dark-mute);margin-top:7px;max-width:20ch}
+
+/* ---------- how to read ---------- */
+.howto{background:var(--card);border:1px solid var(--line);border-radius:var(--r);
+  padding:20px 22px;margin:34px 0 8px;display:grid;gap:14px}
+.howto h4{margin:0;font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700}
+.howto p{margin:0;font-size:.95rem;color:var(--muted)}
+.howto .legend{display:flex;flex-wrap:wrap;gap:10px}
+.tag{display:inline-flex;align-items:center;gap:7px;font-size:.78rem;font-weight:600;
+  padding:5px 11px;border-radius:999px;border:1px solid var(--line)}
+.tag .d{width:8px;height:8px;border-radius:50%}
+.tag.plain{color:var(--ink)} .tag.plain .d{background:var(--ink)}
+.tag.ana{color:var(--accent)} .tag.ana .d{background:var(--accent)}
+.tag.tech{color:var(--cold)} .tag.tech .d{background:var(--cold)}
+
+/* ---------- typography ---------- */
+.part-head{margin:78px 0 8px;padding-top:18px}
+.part-head .pn{font-family:var(--mono);font-size:.76rem;letter-spacing:.2em;color:var(--accent);font-weight:600}
+.part-head h2{font-family:var(--serif);font-weight:600;font-size:clamp(1.9rem,4vw,2.7rem);
+  line-height:1.05;letter-spacing:-.02em;margin:.18em 0 0}
+.part-head .sub{color:var(--muted);font-size:1.05rem;margin:.7em 0 0;max-width:54ch}
+section.block{margin:46px 0;scroll-margin-top:84px}
+section.block>h3{font-family:var(--serif);font-weight:600;font-size:1.5rem;letter-spacing:-.01em;
+  margin:0 0 .5em;line-height:1.15}
+article p{margin:0 0 1.05em}
+.plain{font-size:1.07rem;color:#2c2722}
+.plain.lead{font-size:1.16rem;line-height:1.55}
+article a{color:var(--accent);text-decoration:none;border-bottom:1px solid var(--accent-soft);transition:.15s}
+article a:hover{border-bottom-color:var(--accent)}
+strong{font-weight:600}
+em{font-style:italic}
+code{font-family:var(--mono);font-size:.84em;background:var(--paper-2);padding:.12em .4em;border-radius:5px;
+  border:1px solid var(--line)}
+h3 code,h4 code{font-size:.78em}
+
+/* ---------- collapsible layers ---------- */
+details.layer{margin:16px 0;border:1px solid var(--line);border-radius:11px;overflow:hidden;background:var(--card)}
+details.layer[open]{box-shadow:0 1px 0 var(--line)}
+details.layer>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:11px;
+  padding:13px 16px;font-weight:600;font-size:.92rem;user-select:none;transition:background .15s}
+details.layer>summary::-webkit-details-marker{display:none}
+details.layer>summary:hover{background:var(--paper-2)}
+.layer .badge{font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;font-weight:700;
+  padding:3px 9px;border-radius:6px;white-space:nowrap}
+.layer.analogy{border-left:3px solid var(--accent)}
+.layer.analogy .badge{background:var(--accent-soft);color:var(--accent)}
+.layer.technical{border-left:3px solid var(--cold)}
+.layer.technical .badge{background:var(--cold-soft);color:var(--cold)}
+.layer .stitle{color:var(--muted);font-weight:500;font-size:.86rem}
+.layer .chev{margin-left:auto;color:var(--faint);transition:transform .2s;flex:none}
+details.layer[open]>summary .chev{transform:rotate(90deg)}
+.layer .body{padding:2px 18px 18px}
+.layer.technical .body{font-size:.96rem}
+.layer .body>*:first-child{margin-top:0}
+.layer .body>*:last-child{margin-bottom:0}
+.layer.technical .body p,.layer.technical .body li{color:#332e28}
+
+/* ---------- code / pre ---------- */
+pre{background:var(--dark);color:#e7dfce;font-family:var(--mono);font-size:.82rem;line-height:1.6;
+  padding:18px 20px;border-radius:11px;overflow:auto;margin:18px 0;border:1px solid #2a241c}
+pre code{background:none;border:0;padding:0;font-size:1em;color:inherit}
+pre .c{color:#8d8674}
+pre .k{color:#e08a1e}
+pre .s{color:#9bb08a}
+pre .n{color:#cdb6ff}
+
+/* ---------- tables ---------- */
+.tablewrap{overflow-x:auto;margin:20px 0;border:1px solid var(--line);border-radius:11px}
+table{border-collapse:collapse;width:100%;font-size:.88rem}
+th,td{text-align:left;padding:10px 13px;border-bottom:1px solid var(--line);vertical-align:top}
+thead th{background:var(--paper-2);font-weight:600;font-size:.74rem;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--muted);white-space:nowrap}
+tbody tr:last-child td{border-bottom:0}
+tbody tr:hover{background:rgba(180,83,9,.04)}
+td .mono,th .mono{font-family:var(--mono);font-size:.92em}
+.yes{color:var(--good);font-weight:600}.no{color:var(--bad);font-weight:600}
+
+/* ---------- callouts / components ---------- */
+.callout{border:1px solid var(--line);border-left:3px solid var(--accent);background:var(--card);
+  border-radius:10px;padding:16px 18px;margin:20px 0}
+.callout.cold{border-left-color:var(--cold)}
+.callout .h{font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;font-weight:700;color:var(--accent);margin-bottom:6px}
+.callout.cold .h{color:var(--cold)}
+.callout p{margin:0;font-size:.96rem}
+.pull{font-family:var(--serif);font-size:1.3rem;line-height:1.4;color:var(--ink);font-weight:500;
+  border-left:3px solid var(--accent);padding:6px 0 6px 22px;margin:26px 0}
+
+.statgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin:22px 0}
+.statgrid .s{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:15px 16px}
+.statgrid .s .n{font-family:var(--serif);font-size:1.7rem;font-weight:600;line-height:1;color:var(--accent)}
+.statgrid .s .n.cold{color:var(--cold)}
+.statgrid .s .t{font-size:.8rem;color:var(--muted);margin-top:6px}
+
+.cols2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:20px 0}
+.casecard{border:1px solid var(--line);border-radius:11px;padding:16px 18px;background:var(--card)}
+.casecard.bull{border-top:3px solid var(--good)}
+.casecard.bear{border-top:3px solid var(--bad)}
+.casecard h5{margin:0 0 8px;font-size:.78rem;letter-spacing:.1em;text-transform:uppercase;font-weight:700}
+.casecard.bull h5{color:var(--good)}.casecard.bear h5{color:var(--bad)}
+.casecard ul{margin:0;padding-left:18px;font-size:.92rem;color:#332e28}
+.casecard li{margin:.4em 0}
+
+.steps{list-style:none;counter-reset:s;padding:0;margin:22px 0}
+.steps li{counter-increment:s;position:relative;padding:0 0 18px 50px;border-left:2px solid var(--line);margin-left:16px}
+.steps li:last-child{border-left-color:transparent;padding-bottom:0}
+.steps li::before{content:counter(s);position:absolute;left:-16px;top:-3px;width:32px;height:32px;border-radius:50%;
+  background:var(--ink);color:var(--paper);display:grid;place-items:center;font-family:var(--mono);font-weight:600;font-size:.9rem}
+.steps li.flip::before{background:var(--accent)}
+.steps li b{font-weight:600}
+.steps li p{margin:.3em 0 0;font-size:.95rem;color:var(--muted)}
+
+/* ---------- diagrams ---------- */
+.figure{margin:26px 0}
+.figure svg{display:block;width:100%;height:auto}
+.figure figcaption{font-size:.8rem;color:var(--faint);margin-top:10px;text-align:center}
+.svgbox{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:22px}
+
+/* ---------- footer ---------- */
+footer{background:var(--dark);color:var(--on-dark-mute);margin-top:60px;
+  padding:54px clamp(20px,5vw,64px);border-radius:var(--r) var(--r) 0 0}
+footer .inner{max-width:1180px;margin:0 auto}
+footer h3{font-family:var(--serif);color:var(--on-dark);font-size:1.5rem;margin:0 0 .4em;font-weight:600}
+footer p{margin:0 0 1em;max-width:60ch;font-size:.95rem}
+footer .docs{display:flex;gap:14px;flex-wrap:wrap;margin-top:18px}
+footer .docs a{color:var(--on-dark);text-decoration:none;border:1px solid rgba(243,236,222,.18);
+  border-radius:9px;padding:9px 15px;font-size:.85rem;font-family:var(--mono);transition:.15s}
+footer .docs a:hover{border-color:var(--accent-bright);color:var(--accent-bright)}
+footer .meta{margin-top:30px;padding-top:20px;border-top:1px solid rgba(243,236,222,.12);font-size:.78rem;color:var(--faint)}
+
+/* ---------- responsive ---------- */
+@media(max-width:900px){
+  body{font-size:16.5px}
+  .layout{grid-template-columns:1fr}
+  .toc{position:fixed;inset:54px 0 auto 0;z-index:90;background:var(--paper);border-bottom:1px solid var(--line);
+    max-height:70vh;padding:18px clamp(14px,4vw,24px);box-shadow:0 14px 30px rgba(0,0,0,.12);display:none}
+  .toc.open{display:block}
+  .navtoggle{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--paper-2);
+    border-radius:9px;padding:7px 12px;font:inherit;font-size:.8rem;font-weight:600;cursor:pointer;color:var(--ink)}
+  .cols2{grid-template-columns:1fr}
+  article>*{max-width:100%}
+}
+@media(max-width:560px){
+  .levelctl .lbl{display:none}
+  .hero{border-radius:0 0 10px 10px}
+}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
+</style>
+</style>
+</head>
+<body class="level-2">
+<div id="progress"></div>
+
+<header class="topbar">
+  <div class="inner">
+    <span class="brand"><span class="dot"></span><b>AXIOM</b></span>
+    <button class="navtoggle" id="navtoggle" aria-expanded="false">☰ Contents</button>
+    <span class="spacer" style="flex:1"></span>
+    <div class="levelctl">
+      <span class="lbl">Reading level</span>
+      <div class="seg" role="group" aria-label="Reading level">
+        <button data-level="1" aria-pressed="false">Plain</button>
+        <button data-level="2" aria-pressed="true">+ Analogy</button>
+        <button data-level="3" aria-pressed="false">Full</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="toc" id="toc">
+    <h4>Contents</h4>
+    <div class="part">I · The bet</div>
+    <ol>
+      <li><a href="#what">What it is</a></li>
+      <li><a href="#why">Why simulate instead of generate</a></li>
+      <li><a href="#boundary">The product boundary</a></li>
+    </ol>
+    <div class="part">II · The world</div>
+    <ol>
+      <li><a href="#particles">Particles with a trait</a></li>
+      <li><a href="#net">The pair control net</a></li>
+      <li><a href="#geometry">Density decides the box</a></li>
+      <li><a href="#genome">One flat genome</a></li>
+    </ol>
+    <div class="part">III · The search</div>
+    <ol>
+      <li><a href="#descriptor">Describing a world in 53 numbers</a></li>
+      <li><a href="#gates">Alive is a checklist, not a score</a></li>
+      <li><a href="#ladder">Spending compute in tiers</a></li>
+      <li><a href="#evolution">Novelty, not fitness</a></li>
+      <li><a href="#scheduler">The scheduler that cannot certify</a></li>
+    </ol>
+    <div class="part">IV · The dial board</div>
+    <ol>
+      <li><a href="#tuning">One struct, one entry point</a></li>
+      <li><a href="#knobs">The knob registry</a></li>
+      <li><a href="#digest">Evidence that cannot mix</a></li>
+    </ol>
+    <div class="part">V · Seeing and keeping</div>
+    <ol>
+      <li><a href="#render">The renderer invents nothing</a></li>
+      <li><a href="#checkpoints">A world you can own</a></li>
+      <li><a href="#modules">Module map</a></li>
+    </ol>
+    <div class="part">VI · The verdict</div>
+    <ol>
+      <li><a href="#market">Who would buy this</a></li>
+      <li><a href="#moat">Defensibility</a></li>
+      <li><a href="#limits">Honest limits</a></li>
+    </ol>
+  </aside>
+
+  <article>
+
+  <header class="hero">
+    <div class="grid-bg"></div>
+    <p class="kicker">A search for worlds that stay alive</p>
+    <h1>Physics, searched until <em>something lives</em>.</h1>
+    <p class="lede"><b>AXIOM</b> looks for rules. It runs three-dimensional Particle-Lenia on a periodic torus, measures whether the result holds structure, moves, and heals itself after damage, and keeps only the ones that behave unlike anything already found. The worlds it keeps are not sampled from a trained model. They are simulated, and they can be saved, restored, and continued exactly.</p>
+    <div class="stats">
+      <div class="stat"><div class="n">53</div><div class="t">descriptor axes, all from true torus geometry</div></div>
+      <div class="stat"><div class="n">43</div><div class="t">named knobs behind one entry point</div></div>
+      <div class="stat"><div class="n">0</div><div class="t">certified worlds so far</div></div>
+    </div>
+  </header>
+
+  <div class="howto">
+    <h4>How to read this document</h4>
+    <p>Every idea is told at up to three depths. The <b>plain</b> version is always visible. Open the <b>analogy</b> for an everyday comparison, or the <b>technical</b> panel for the precise mechanism. Use the <b>reading-level</b> control at the top right to open or close them all at once, or click any panel on its own.</p>
+    <div class="legend">
+      <span class="tag plain"><span class="d"></span>Plain · always on</span>
+      <span class="tag ana"><span class="d"></span>Analogy · the metaphor</span>
+      <span class="tag tech"><span class="d"></span>Technical · for the builder</span>
+    </div>
+  </div>
+
+  <div class="part-head" id="part1">
+    <div class="pn">PART I</div>
+    <h2>The bet</h2>
+    <p class="sub">What the system is, the wager underneath it, and the boundary it refuses to cross.</p>
+  </div>
+
+  <section class="block" id="what">
+    <h3>What it is</h3>
+    <p class="plain lead">AXIOM is a search system. It does not make one world; it hunts through the space of possible physical rules for the rare ones that produce something worth looking at. A candidate rule is run as a simulation, measured against a fixed checklist, and kept only if it is both alive by that checklist and unlike everything already in the archive. Most candidates fail. That is the point of searching.</p>
+
+    <details class="layer analogy">
+      <summary><span class="badge">Analogy</span><span class="stitle">Tuning a radio in a universe of stations</span><span class="chev">›</span></summary>
+      <div class="body">
+        <p>Imagine a radio with forty dials instead of one, tuned not to stations but to laws of physics. Almost every setting gives static: particles fly apart, or clump into a dead ball, or freeze. Somewhere in that space are settings where the static organizes into something that holds together, moves, and knits itself back after you tear a hole in it.</p>
+        <p>AXIOM turns the dials automatically, listens to each setting for a while, and writes down the ones that are not static. It does not know what it is looking for beyond a short checklist of what counts as alive. It is explicitly rewarded for finding settings unlike the ones it already has.</p>
+      </div>
+    </details>
+
+    <details class="layer technical">
+      <summary><span class="badge">Technical</span><span class="stitle">Genome in, archive out</span><span class="chev">›</span></summary>
+      <div class="body">
+        <p>A candidate is a bounded <code>Vec&lt;f32&gt;</code>. <code>engine</code> decodes it into a world and steps it deterministically. <code>tuner</code> measures the result as a 53-axis descriptor, applies a binary viability gate, and admits survivors into a novelty archive with deterministic capacity pruning.</p>
+        <p>The dependency runs one way. <code>engine</code> imports nothing from <code>tuner</code> or <code>viewer</code>, so the simulation cannot acquire a dependency on how it is searched or drawn. Anchor count and dimensionality are read from the data rather than fixed by a constant.</p>
+      </div>
+    </details>
+  </section>
+
+  <section class="block" id="why">
+    <h3>Why simulate instead of generate</h3>
+    <p class="plain lead">The dominant way to make a room full of living-looking imagery is to train a large model on photographs of nature and sample from it. AXIOM does the opposite: it runs actual physics and searches for rules whose behavior happens to look alive. This costs far more compute and is far less certain to produce something beautiful. The wager is that a simulated world has properties a sampled one cannot fake.</p>
+
+    <div class="cols2">
+      <div class="casecard bull">
+        <h5>What simulation buys</h5>
+        <ul>
+          <li>It persists. Structure at step 100,000 was produced by the same law as step one.</li>
+          <li>It repairs. Tear a hole and the organization closes it, or fails the gate.</li>
+          <li>It is reproducible. A genome and a seed give the same world, bit for bit.</li>
+          <li>It trains on nothing. There is no corpus and no provenance question.</li>
+        </ul>
+      </div>
+      <div class="casecard bear">
+        <h5>What it may not buy</h5>
+        <ul>
+          <li>Nobody has asked for physically-grounded worlds.</li>
+          <li>A visitor in a room may not perceive the difference at all.</li>
+          <li>Generated imagery is cheaper, faster, and already shipping.</li>
+          <li>No certified AXIOM world exists yet to test any of this.</li>
+        </ul>
+      </div>
+    </div>
+
+    <details class="layer analogy">
+      <summary><span class="badge">Analogy</span><span class="stitle">A photograph of a reef, or a reef</span><span class="chev">›</span></summary>
+      <div class="body">
+        <p>A model trained on four billion photographs of coral can produce an image indistinguishable from coral. But you cannot swim through it, you cannot cut it and watch it heal, and if you ask what it will look like in an hour, the honest answer is that there is no it. There is only the next sample.</p>
+        <p>A simulated reef is worse-looking and more real. It has a state. It has a future determined by its own rules. Whether anyone standing in the room cares is the entire commercial question, and it is unanswered.</p>
+      </div>
+    </details>
+  </section>
+
+  <section class="block" id="boundary">
+    <h3>The product boundary</h3>
+    <p class="plain lead">Several choices are fixed and not up for search. The world is three-dimensional, because the product is something you fly through. It is a torus, so it has no walls and structures wrap around every face. Its size is derived from density rather than set freely. And the renderer is forbidden from adding motion the simulation did not produce.</p>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Invariant</th><th>Consequence</th></tr></thead>
+        <tbody>
+          <tr><td>Particle dynamics</td><td>Cost follows particle count, not dense voxel count.</td></tr>
+          <tr><td>Three spatial dimensions</td><td>Search effort goes into worlds the product can display and inhabit.</td></tr>
+          <tr><td>Periodic torus</td><td>No terminal boundary; structures cross every face.</td></tr>
+          <tr><td>Derived extent</td><td>Coordination controls density; extent is never a free scale.</td></tr>
+          <tr><td>Closed-form derivatives</td><td>No autodiff or tensor dependency in the simulator.</td></tr>
+          <tr><td>Binary viability</td><td>A gate decides whether a candidate is living. It never ranks survivors.</td></tr>
+          <tr><td>Causal rendering</td><td>Geometry, color, motion, and emission derive from particle state.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout">
+      <div class="h">The rule that keeps it honest</div>
+      <p>Pausing the simulation freezes every biological change in the image. There is no shader-time deformation, scrolling texture, animated noise, or camera-driven simulation change. A world that is only a gas renders as a gas.</p>
+    </div>
+  </section>
+
+  <div class="part-head" id="part2">
+    <div class="pn">PART II</div>
+    <h2>The world</h2>
+    <p class="sub">What a particle is, how particles decide to attract or repel, and how the box gets its size.</p>
+  </div>
+
+  <section class="block" id="particles">
+    <h3>Particles with a trait</h3>
+    <p class="plain lead">Every particle carries a position and one number between zero and one, its trait. The trait is like a species identity, except continuous: a particle can be halfway between two kinds. Traits are assigned when the world is seeded and never change during a run. Position is the only thing that moves.</p>
+
+    <details class="layer analogy">
+      <summary><span class="badge">Analogy</span><span class="stitle">A dial, not a label</span><span class="chev">›</span></summary>
+      <div class="body">
+        <p>Instead of sorting particles into a fixed number of species boxes, give each one a dial reading between 0 and 1. Two particles reading 0.31 and 0.34 are nearly the same kind. One reading 0.9 is something else entirely.</p>
+        <p>The system places a small number of anchor points along the dial and lets each particle belong partly to the two anchors it sits between. Sitting exactly on an anchor means belonging wholly to it, which is what makes this an exact generalization of the older discrete-species model rather than a replacement for it.</p>
+      </div>
+    </details>
+
+    <details class="layer technical">
+      <summary><span class="badge">Technical</span><span class="stitle">Piecewise-linear hats on a circle</span><span class="chev">›</span></summary>
+      <div class="body">
+        <p><code>M</code> anchors sit evenly spaced on a circle, so a trait wraps at the seam instead of clamping. Hat memberships satisfy <code>alpha_a(c) &gt;= 0</code> and <code>sum_a alpha_a(c) = 1</code>, with at most two adjacent anchors nonzero and exactly one-hot at an anchor.</p>
+        <p>Trait-distribution logits in the genome select the initial population density over trait bins. The decoder applies a small floor before normalization, then jitters deterministically inside each bin, so every evaluation seed gets the same trait histogram and a different reproducible spatial arrangement.</p>
+      </div>
+    </details>
+  </section>
+
+  <section class="block" id="net">
+    <h3>The pair control net</h3>
+    <p class="plain lead">Each ordered pair of anchors owns its own rule: how strongly a particle of one kind senses another at a given distance, how it responds to feeling crowded, and how hard it pushes. That is a full grid of relationships, so kind A can chase kind B while B ignores A entirely.</p>
+
+    <pre><code><span class="c">// what a particle senses from one source kind, then how it responds</span>
+U_ab(i)    = sum_(j != i) alpha_a(c_j) K_ab(d_ij)
+Uhat_ab(i) = U_ab(i) / norm_ab
+
+E_i = -sum_a sum_b alpha_b(c_i) w_ab G_ab(Uhat_ab(i))</code></pre>
+
+    <details class="layer analogy">
+      <summary><span class="badge">Analogy</span><span class="stitle">A seating chart with grudges</span><span class="chev">›</span></summary>
+      <div class="body">
+        <p>Think of a dinner party where every guest has an opinion about every other kind of guest, and the opinions are not mutual. Some want to sit close, some want a specific distance, some want to be near a crowd of one kind but away from another.</p>
+        <p>The kernel is how far away you can notice someone. The growth curve is your preferred crowding level, so being too alone or too packed both push you to move. The weight is how much you care. Every ordered pair gets its own set of all three.</p>
+      </div>
+    </details>
+
+    <details class="layer technical">
+      <summary><span class="badge">Technical</span><span class="stitle">Gaussian mixtures and the truncation</span><span class="chev">›</span></summary>
+      <div class="body">
+        <p>Kernels and growth curves are bounded Gaussian mixtures. Only <code>G'</code> enters movement; the value is kept readable on its own. A zero amplitude disables a component, so the search learns the active count rather than being told it.</p>
+        <p>Kernel reach stays below <code>0.375 * extent</code> and every sigma has a positive lower bound. The neighbour loop truncates each shell at <code>mu + 3.5 sigma</code>, about 0.2 percent of peak, and skips negligible-amplitude terms so one inert term cannot inflate the search radius. This is an explicit approximation: the executed force carries a small hard cutoff and is not the exact gradient of the untruncated energy there.</p>
+        <p>A pair's position in the net <em>is</em> its <code>(source, destination)</code> identity, so neither the interaction nor its callers carry those indices separately.</p>
+      </div>
+    </details>
+  </section>
+
+  <section class="block" id="geometry">
+    <h3>Density decides the box</h3>
+    <p class="plain lead">The size of the world is not a free choice. The genome asks for a target crowding, and the box size follows from that plus the particle count and interaction radius. Doubling the particles at the same crowding gives a bigger world with the same local texture, rather than a denser one.</p>
+
+    <details class="layer technical">
+      <summary><span class="badge">Technical</span><span class="stitle">One probe, reused</span><span class="chev">›</span></summary>
+      <div class="body">
+        <p>A density probe measures the nominal coordination of a uniform population at a trial extent, then a genome's coordination gene rescales that reference by the dimensional root. The probe depends only on particle count, dimensionality, and radius, so a campaign measures it once and threads the result through every candidate rather than re-measuring per genome.</p>
+        <p>Interaction norms are calibrated separately, on a deterministic uniform seed with the resolved trait distribution, using the same torus distance, softening, and memberships as the real rollout. A clumped live state never becomes the density reference.</p>
+      </div>
+    </details>
+  </section>
+
+  <section class="block" id="genome">
+    <h3>One flat genome</h3>
+    <p class="plain lead">Everything the search can change about a world's law lives in a single flat list of numbers. That keeps the mutation operators simple: they treat the genome as an anonymous vector and never need to know what any gene means.</p>
+
+    <pre><code>[ coordination ]
+[ trait-distribution logits ]
+[ M² pair blocks in source-major order ]
+
+pair block =
+  shells × [kernel beta, mu, sigma]
+  bumps  × [growth beta, mu, sigma]
+  [directed weight]</code></pre>
+
+    <details class="layer technical">
+      <summary><span class="badge">Technical</span><span class="stitle">Self-describing length</span><span class="chev">›</span></summary>
+      <div class="body">
+        <p>Anchor count is recovered from the genome's own length by inverting <code>1 + M + M² · genes_per_pair</code>. That quadratic is strictly increasing in <code>M</code>, so a length admits at most one anchor count. Nothing outside the genome has to declare its shape, which is what lets one search carry genomes of differing anchor counts.</p>
+      </div>
+    </details>
+  </section>
+
+  <div class="part-head" id="part3">
+    <div class="pn">PART III</div>
+    <h2>The search</h2>
+    <p class="sub">How a world gets measured, judged, and either thrown away or promoted.</p>
+  </div>
+
+  <section class="block" id="descriptor">
+    <h3>Describing a world in 53 numbers</h3>
+    <p class="plain lead">To compare worlds, the system reduces each one to a fixed list of 53 measurements: how matter is spaced at different distances, whether different regions look different from each other, whether material and empty space each form connected paths through the world, and how much things move and turn over.</p>
+
+    <div class="statgrid">
+      <div class="s"><div class="n">18</div><div class="t">trait-conditioned radial structure</div></div>
+      <div class="s"><div class="n">15</div><div class="t">local heterogeneity at three grid scales</div></div>
+      <div class="s"><div class="n">12</div><div class="t">topology: H0 mass and winding</div></div>
+      <div class="s"><div class="n">8</div><div class="t">dynamics, asymmetry, repair</div></div>
+    </div>
+
+    <details class="layer analogy">
+      <summary><span class="badge">Analogy</span><span class="stitle">A blood panel for a world</span><span class="chev">›</span></summary>
+      <div class="body">
+        <p>You cannot compare two patients by looking at them. You draw blood and read the same fixed panel of numbers for everyone, so any two results are comparable and any change is measurable.</p>
+        <p>The descriptor is that panel. The critical entries are the ones that catch a world faking it: whether different neighbourhoods genuinely differ, and whether you could actually travel from one side of the world to the other through material, or through empty space.</p>
+      </div>
+    </details>
+
+    <details class="layer technical">
+      <summary><span class="badge">Technical</span><span class="stitle">Why the corrections matter</span><span class="chev">›</span></summary>
+      <div class="body">
+        <p>Heterogeneity uses shot-noise-corrected statistics at grid sides 4, 8, and 16: density overdispersion after subtracting Poisson variance, void probability, occupancy-weighted trait variance with a finite-population correction, corrected local trait entropy, and axial autocorrelation. Without those corrections, sparse fine-grid cells make random trait mixtures look like biomes.</p>
+        <p>Topology uses a cutoff-limited minimum spanning forest for H0 mass, plus dense and void winding fractions. A phase contributes only if it occupies at least 8 percent of the grid <em>and</em> one component contains a non-contractible loop around a torus axis. A compact blob is therefore disconnected for product purposes even when all its cells touch.</p>
+        <p>Descriptor geometry is fixed at compile time and is deliberately not tunable. Changing a bin count creates a new descriptor version rather than a run setting.</p>
+      </div>
+    </details>
+  </section>
+
+  <section class="block" id="gates">
+    <h3>Alive is a checklist, not a score</h3>
+    <p class="plain lead">There is no fitness number. A world either passes a short list of named conditions or it fails, and the failure is named. This keeps the search from quietly optimizing one number at the expense of everything interesting.</p>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Clause</th><th>Rejection</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td>finite state and descriptor</td><td class="no">Dead</td><td>Integration diverged or produced invalid values.</td></tr>
+          <tr><td>departure from uniform baseline</td><td class="no">Dispersed</td><td>The world remained a gas.</td></tr>
+          <tr><td>upper structure bound</td><td class="no">Collapsed</td><td>Matter imploded into the shortest scale.</td></tr>
+          <tr><td>mobility and temporal variation</td><td class="no">Frozen</td><td>Structure exists without ongoing change.</td></tr>
+          <tr><td>recovery after local shocks</td><td class="no">Fragile</td><td>The organization does not restore itself.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>Promotion tiers add three more: local heterogeneity, connected material, and connected void. Every threshold is a tuning field rather than a constant, so a campaign can decide what counts as living, but not mid-run.</p>
+
+    <details class="layer analogy">
+      <summary><span class="badge">Analogy</span><span class="stitle">A pass/fail physical, with the reason written down</span><span class="chev">›</span></summary>
+      <div class="body">
+        <p>A doctor does not give you an overall health score out of 100 and let a high cholesterol reading be offset by good hearing. They check specific things, and if one fails, they tell you which one.</p>
+        <p>The <em>Fragile</em> check is the interesting one. The system deliberately damages the world, shakes a region of particles out of place, and runs it forward against an undamaged copy of itself. Closing the gap counts as repair. That is expensive: it roughly doubles the cost of every completed evaluation.</p>
+      </div>
+    </details>
+  </section>
+
+  <section class="block" id="ladder">
+    <h3>Spending compute in tiers</h3>
+    <p class="plain lead">Everything starts cheap. A candidate gets a short run on one seed. Only survivors earn a longer run on more seeds, and only those survivors earn the very long one. A run chooses which tiers to spend on and how long each is, but cannot weaken what a tier means.</p>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Tier</th><th>Main rollout</th><th>Seeds</th><th>Decision</th></tr></thead>
+        <tbody>
+          <tr><td>Discovery</td><td class="mono">1,500+ steps</td><td class="mono">1</td><td>Pass the five base clauses.</td></tr>
+          <tr><td>Persistence</td><td class="mono">10,000+ steps</td><td class="mono">3</td><td>At least two seeds pass base and world clauses.</td></tr>
+          <tr><td>Certification</td><td class="mono">100,000+ steps</td><td class="mono">5</td><td>At least four seeds pass the aggregate gates.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout cold">
+      <div class="h">The number is not the cost</div>
+      <p>A seed that reaches its end also runs one undamaged control and three damaged continuations, each a quarter of the main horizon. A completed seed costs about twice the tabled step count. Early failure reduces it.</p>
+    </div>
+  </section>
+
+  <section class="block" id="evolution">
+    <h3>Novelty, not fitness</h3>
+    <p class="plain lead">Parents are chosen for being unusual, not for being good. A world that scores well on nothing in particular but sits in an unexplored corner of the descriptor space is a better parent than a slightly better copy of something already found.</p>
+
+    <ol class="steps">
+      <li><b>Freeze the archive snapshot.</b><p>Every measurement in the generation compares against one frozen reference, so results do not depend on evaluation order.</p></li>
+      <li><b>Choose parents.</b><p>By novelty tournament, goal expedition, or random restart.</p></li>
+      <li><b>Evaluate in parallel.</b><p>Batch order is preserved so results reproduce across thread counts.</p></li>
+      <li><b>Apply the binary gate.</b><p>Named failures are counted and reported per generation.</p></li>
+      <li class="flip"><b>Merge with deterministic pruning.</b><p>Crowding is recomputed on the combined set, so capacity enforcement has no insertion-order dependence.</p></li>
+    </ol>
+
+    <details class="layer technical">
+      <summary><span class="badge">Technical</span><span class="stitle">Lanes, lineage, and the stall shift</span><span class="chev">›</span></summary>
+      <div class="body">
+        <p>Batch allocation splits between novelty-led offspring, goal expeditions, and fresh random genomes. Random takes whatever the first two do not claim, so the three always sum to the batch at any size and a random escape route survives even in tiny test batches.</p>
+        <p>An expedition samples every descriptor coordinate uniformly, picks the nearest archived behavior, and mutates it. In 53 dimensions most uniform targets are far from the realized manifold, so this is honestly random goal direction rather than coverage-aware illumination.</p>
+        <p><code>lineage_id</code> identifies a founder family and <code>genome_hash</code> identifies an individual rule. That distinction keeps close relatives inside one held-out learning partition. On a stall, the batch shifts toward expedition and random and both mutation terms scale up.</p>
+      </div>
+    </details>
+  </section>
+
+  <section class="block" id="scheduler">
+    <h3>The scheduler that cannot certify</h3>
+    <p class="plain lead">A small learned model predicts which short runs are worth continuing, so expensive evaluation goes where it is likely to pay off. It is deliberately powerless: it can spend compute, but it cannot admit a world to the archive, choose a parent, or certify anything.</p>
+
+    <details class="layer technical">
+      <summary><span class="badge">Technical</span><span class="stitle">Authority is earned and revocable</span><span class="chev">›</span></summary>
+      <div class="body">
+        <p>A deterministic bagged logistic ensemble over standardized features, no tensor runtime. Members train on lineage-grouped bootstraps; the ensemble mean estimates survival probability and member standard deviation estimates uncertainty.</p>
+        <p>It gains scheduling authority only when the untouched test set carries enough positive and negative founder families, its Brier score beats the training base-rate predictor by a margin, and top-fraction recall clears a floor. Continuation slots then split between predicted survival, ensemble uncertainty, and a uniform spread across descriptor neighbourhoods. That uniform quota keeps producing counterexamples and protects the dataset from selection bias. An unauthoritative model leaves selection to the deterministic fallback.</p>
+      </div>
+    </details>
+  </section>
+
+  <div class="part-head" id="part4">
+    <div class="pn">PART IV</div>
+    <h2>The dial board</h2>
+    <p class="sub">Every setting in one place, and the guard that keeps incomparable results apart.</p>
+  </div>
+
+  <section class="block" id="tuning">
+    <h3>One struct, one entry point</h3>
+    <p class="plain lead">Everything a run can vary lives in a single <code>Tuning</code> value, and there is exactly one function that runs a campaign. Configuring an experiment means filling in one struct, not assembling five.</p>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Group</th><th>Contents</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">world</td><td>particles, dimensions, anchors, radius, rate, evaluation seed, shell and bump caps</td></tr>
+          <tr><td class="mono">discovery</td><td>generations, steps, batch, bootstrap, capacity, seed, promotion budget, stall window, mutation scales, lane shares, curated pins</td></tr>
+          <tr><td class="mono">gates</td><td>six viability thresholds, mobility floor, two watchdog thresholds, sustained-window count</td></tr>
+          <tr><td class="mono">repair</td><td>probe count, shake, recovery fraction, minimum effective damage</td></tr>
+          <tr><td class="mono">tiers</td><td>persistence and certification step budgets, each optional</td></tr>
+          <tr><td class="mono">learning</td><td>minimum labeled rows, model seed, continuation quotas, logistic hyperparameters</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="block" id="knobs">
+    <h3>The knob registry</h3>
+    <p class="plain lead">The 43 settings are declared once, in a table. That one declaration produces the command-line parser, the help text, and the header written into every archive file. A setting cannot exist without documentation, and it cannot drift out of sync with its own help.</p>
+
+    <pre><code>$ train --help
+
+  particles         = 1200    particles per rollout
+  robustness_floor  = 0.66    reject below this repair fraction
+  mutation_iso      = 0.01    isotropic mutation scale
+  lane_novelty      = 0.7     novelty share of a generation
+  persistence_steps = 0       persistence rollout steps, 0 to disable
+  <span class="c">... 38 more</span></code></pre>
+
+    <details class="layer analogy">
+      <summary><span class="badge">Analogy</span><span class="stitle">The label is printed from the same die as the dial</span><span class="chev">›</span></summary>
+      <div class="body">
+        <p>On a badly made instrument the panel is silkscreened separately from the wiring, so eventually a knob does something other than what its label says. On a well-made one the label and the connection come from the same source, and a mislabeled knob is not possible.</p>
+        <p>Adding a setting here touches one line and reaches the parser, the help, and the saved file at once.</p>
+      </div>
+    </details>
+  </section>
+
+  <section class="block" id="digest">
+    <h3>Evidence that cannot mix</h3>
+    <p class="plain lead">Settings come in two kinds. Some change how much searching happens; those are free to vary between runs that share results. Others change what an evaluation <em>means</em>, and mixing results across them would be comparing different experiments. The system refuses that automatically.</p>
+
+    <div class="cols2">
+      <div class="casecard bull">
+        <h5>Free to vary</h5>
+        <ul>
+          <li>search seed</li>
+          <li>batch size</li>
+          <li>generations</li>
+          <li>archive capacity</li>
+          <li>promotion budget</li>
+        </ul>
+      </div>
+      <div class="casecard bear">
+        <h5>Splits the evidence</h5>
+        <ul>
+          <li>every gate threshold</li>
+          <li>mutation scales</li>
+          <li>lane shares</li>
+          <li>the repair protocol</li>
+          <li>the fixed world parameters</li>
+        </ul>
+      </div>
+    </div>
+
+    <p class="pull">Resuming a campaign under different gates is refused before a single rollout runs, rather than silently producing a ledger that mixes two experiments.</p>
+
+    <details class="layer technical">
+      <summary><span class="badge">Technical</span><span class="stitle">A digest inside the identity</span><span class="chev">›</span></summary>
+      <div class="body">
+        <p>Everything in the second column folds into <code>Tuning::digest</code>. <code>ExperimentIdentity</code> carries that digest alongside the simulator, descriptor, genome-layout, and feature-schema versions and the fixed world parameters. Campaign state binds to an identity on first use and rejects a mismatch with a named error.</p>
+        <p>The archive header goes further and writes every knob through the registry, so an archive file records the exact regime that produced and judged it. A reader can reproduce both the worlds and the verdict.</p>
+      </div>
+    </details>
+  </section>
+
+  <div class="part-head" id="part5">
+    <div class="pn">PART V</div>
+    <h2>Seeing and keeping</h2>
+    <p class="sub">How particles become an image, and how a world becomes a durable thing.</p>
+  </div>
+
+  <section class="block" id="render">
+    <h3>The renderer invents nothing</h3>
+    <p class="plain lead">Particles are smeared into a density field, and the visible material is that field: surfaces where density crosses a threshold, colour from the local trait mixture, glow from how fast density is changing. Every channel traces back to particle state. Nothing is added for looks.</p>
+
+    <pre><code>rho(q)      = sum_i phi(||q - x_i||_T / h)
+trait(q)    = sum_i phi_i c_i / max(rho(q), epsilon)
+activity(q) = |rho_t(q) - rho_(t-1)(q)|</code></pre>
+
+    <details class="layer analogy">
+      <summary><span class="badge">Analogy</span><span class="stitle">A photograph, not a painting</span><span class="chev">›</span></summary>
+      <div class="body">
+        <p>A photographer can choose exposure, lens, and where to stand. They cannot add a corridor that was not in the room. The renderer has the same freedom and the same limit: it decides how the material is lit and how thickly it reads, and nothing about what is there.</p>
+        <p>This is why the renderer cannot rescue the project. If the physics does not produce connected caverns, no shader will produce them either.</p>
+      </div>
+    </details>
+
+    <details class="layer technical">
+      <summary><span class="badge">Technical</span><span class="stitle">Two paths, one semantics</span><span class="chev">›</span></summary>
+      <div class="body">
+        <p>Particle sprites are the diagnostic ground truth and fallback; the periodic density material is the product view. The reference density backend runs on CPU at modest resolution and defines field semantics for tests. A GPU backend may replace field construction or ray integration when particle counts require it, provided sampled density and seam behaviour match within a declared tolerance.</p>
+        <p>Tests assert that opposite torus faces sample equal density with no visible seam, that pausing freezes the field and emission, and that a particle bridge becomes connected material while separated clusters retain a void.</p>
+      </div>
+    </details>
+  </section>
+
+  <section class="block" id="checkpoints">
+    <h3>A world you can own</h3>
+    <p class="plain lead">An archive entry records a rule. A checkpoint records a place: the exact positions and traits of every particle at a moment. Loading one restores that moment, and continuing from it produces the same future it would have had.</p>
+
+    <details class="layer technical">
+      <summary><span class="badge">Technical</span><span class="stitle">Immutable state, mutable manifest</span><span class="chev">›</span></summary>
+      <div class="body">
+        <p>State files are immutable. Saving writes a temporary sibling, flushes it, and publishes it without replacing an existing final name. The mutable manifest is written atomically only after its state file exists, so it can advance the latest checkpoint id safely.</p>
+        <p>Loading validates both records and installs the saved interaction norms directly rather than recalculating them, which avoids platform-dependent calibration drift. A round-trip preserves every particle bit, trait bit, tick, and genome gene, and a restored world reaches the same state hash after 10,000 further steps.</p>
+        <p>A world compares against a recipe by comparing the genome it was built from. Decoding is deterministic, so genome equality answers the question exactly. Version mismatches fail closed; there is no migration path in either durable format.</p>
+      </div>
+    </details>
+  </section>
+
+  <section class="block" id="modules">
+    <h3>Module map</h3>
+    <p class="plain lead">Two halves and a hinge. The engine is a pure function of a genome. The tuner measures, judges, searches, and records. Neither knows about the viewer.</p>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Module</th><th>Responsibility</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">engine/substrate · trait · kernel · rng · grid</td><td>Storage, anchor basis, Gaussian mixtures, seeded randomness, neighbour lookup.</td></tr>
+          <tr><td class="mono">engine/genome</td><td><code>Params</code>, <code>Caps</code>, <code>Layout</code>: the flat-vector codec and its bounds.</td></tr>
+          <tr><td class="mono">engine/geometry</td><td>Derived extent and the measured density reference.</td></tr>
+          <tr><td class="mono">engine/interaction</td><td>The pair control net, decoded and calibrated.</td></tr>
+          <tr><td class="mono">engine/world · lenia</td><td>Authoritative state and seeding; the force step.</td></tr>
+          <tr><td class="mono">tuner/tuning</td><td><code>Tuning</code> and the knob registry.</td></tr>
+          <tr><td class="mono">tuner/metrics · persistence · viability</td><td>Descriptor v5, H0 barcodes, named binary clauses.</td></tr>
+          <tr><td class="mono">tuner/rollout · novelty · search</td><td>Tiered evaluation, descriptor distance, the generation transaction.</td></tr>
+          <tr><td class="mono">tuner/campaign · learning · checkpoint</td><td>The entry point, scheduling, durable snapshots.</td></tr>
+          <tr><td class="mono">tuner/archive</td><td>Self-describing discovery archive.</td></tr>
+          <tr><td class="mono">viewer/</td><td>Causal material renderer, diagnostics, archive browser.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="part-head" id="part6">
+    <div class="pn">PART VI</div>
+    <h2>The verdict</h2>
+    <p class="sub">Who would buy this, what protects it, and what is honestly unproven.</p>
+  </div>
+
+  <section class="block" id="market">
+    <h3>Who would buy this</h3>
+    <p class="plain lead">The immersive-art category is real and growing. The market for a world-generation engine sold into it is not established. AXIOM is a research bet with an unproven aesthetic thesis, not a business with identified demand.</p>
+
+    <div class="statgrid">
+      <div class="s"><div class="n">$4.8B</div><div class="t">immersive art exhibitions, 2024, growing 14.2% annually</div></div>
+      <div class="s"><div class="n cold">~tens</div><div class="t">serious buyers for an engine, worldwide</div></div>
+      <div class="s"><div class="n cold">0</div><div class="t">venues asking for physically-grounded worlds</div></div>
+    </div>
+
+    <details class="layer analogy">
+      <summary><span class="badge">Analogy</span><span class="stitle">Selling engines in a town with twelve cars</span><span class="chev">›</span></summary>
+      <div class="body">
+        <p>The category numbers describe ticketing, fabrication, and venues. AXIOM does not sell any of those. It would sell an engine to organizations that already run immersive spaces, and there are perhaps tens of those worldwide, most already tooled.</p>
+        <p>Concentrated markets can still be excellent businesses when the product is genuinely differentiated. The problem is that AXIOM has not shown its differentiation in a way a buyer can see.</p>
+      </div>
+    </details>
+
+    <details class="layer technical">
+      <summary><span class="badge">Technical</span><span class="stitle">The competitive frame</span><span class="chev">›</span></summary>
+      <div class="body">
+        <p>The dominant commercial approach trains a generative model on scraped nature imagery. Refik Anadol's Large Nature Model, trained on roughly 4.5 billion images plus sounds and scent molecules, powers Dataland, which opened in Los Angeles on 20 June 2026 as a purpose-built museum of AI art.</p>
+        <p>The nearest research competitor is Flow-Lenia, whose mass conservation and localized parameters may simply suit continuous material better than particles do. Its published evidence is concentrated in two dimensions. That is a live substrate risk, not a footnote.</p>
+      </div>
+    </details>
+  </section>
+
+  <section class="block" id="moat">
+    <h3>Defensibility</h3>
+    <p class="plain lead">The bull and bear cases are not balanced. The bear case rests on observable facts. The bull case rests on a physics result that has not been demonstrated.</p>
+
+    <div class="cols2">
+      <div class="casecard bull">
+        <h5>Bull</h5>
+        <ul>
+          <li>No training corpus, so no consent or provenance question a venue's counsel must litigate.</li>
+          <li>Checkpoints make a world a named, ownable, re-exhibitable asset.</li>
+          <li>Novelty search over a 53-axis physical descriptor with tiered evidence is not assembled in a quarter.</li>
+          <li>The search machinery survives a substrate swap, so the investment is not all on Particle-Lenia.</li>
+        </ul>
+      </div>
+      <div class="casecard bear">
+        <h5>Bear</h5>
+        <ul>
+          <li>No observed demand for physically-grounded emergence.</li>
+          <li>The differentiator may be imperceptible to a visitor in a room.</li>
+          <li>The core capability is unproven: no certified world exists.</li>
+          <li>Room-scale real-time performance is unmeasured; the reference path is CPU.</li>
+          <li>Competitors have museums, brands, and institutional partnerships.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="callout">
+      <div class="h">Go-to-market implication</div>
+      <p>Do not sell an engine. Produce one certified world, fly through it, and judge it blind. If it is beautiful, the artifact is the pitch. If it is not, the market question was never the binding constraint.</p>
+    </div>
+  </section>
+
+  <section class="block" id="limits">
+    <h3>Honest limits</h3>
+    <p class="plain lead">The largest unknown is whether Particle-Lenia can produce a bicontinuous carrier phase with several persistent local regimes. The renderer can reveal connected matter already present in the particles. Search and physics must supply it, and so far they have not.</p>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Limit</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>A certified 100,000-step world</td><td class="no">None exists</td></tr>
+          <tr><td>Room-scale real-time rendering</td><td class="no">Unmeasured</td></tr>
+          <tr><td>Trait dynamics, birth, death, inheritance</td><td class="no">Outside the contract</td></tr>
+          <tr><td>Checkpoint browsing and a preset library</td><td class="no">Not built</td></tr>
+          <tr><td>Expedition targeting in 53 dimensions</td><td>Random goal direction, not illumination</td></tr>
+          <tr><td>The descriptor</td><td>Hand-designed; encodes a prior</td></tr>
+          <tr><td>Campaign resumption</td><td>Continues evidence, not a half-finished generation</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout cold">
+      <div class="h">On stale evidence</div>
+      <p>The recorded novelty-versus-random comparison predates descriptor and gate corrections. Its values do not count as evidence for the current search, and a fresh multi-seed ablation is required before any claim about search performance.</p>
+    </div>
+  </section>
+
+  </article>
+</div>
+
+<footer>
+  <div class="inner">
+    <h3>AXIOM</h3>
+    <p>A search for persistent, explorable three-dimensional Particle-Lenia worlds. The product boundary is a periodic torus containing continuous material, open flight space, local regimes, and ongoing dynamics. Search, evaluation, checkpointing, and the viewer all target that boundary.</p>
+    <div class="docs">
+      <a href="README.md">README.md</a>
+      <a href="TECHNICAL_SPEC.md">TECHNICAL_SPEC.md</a>
+      <a href="MARKET_ANALYSIS.md">MARKET_ANALYSIS.md</a>
+    </div>
+    <div class="meta">This document synthesizes the three. Where it and the code disagree, the code wins.</div>
+  </div>
+</footer>
+
+
+<script>
+(function(){
+  "use strict";
+  var body = document.body;
+  var segBtns = Array.prototype.slice.call(document.querySelectorAll('.seg button'));
+
+  function applyLevel(level){
+    body.classList.remove('level-1','level-2','level-3');
+    body.classList.add('level-'+level);
+    segBtns.forEach(function(b){ b.setAttribute('aria-pressed', b.dataset.level === String(level)); });
+    document.querySelectorAll('details.layer.analogy').forEach(function(d){ d.open = level >= 2; });
+    document.querySelectorAll('details.layer.technical').forEach(function(d){ d.open = level >= 3; });
+  }
+  segBtns.forEach(function(b){
+    b.addEventListener('click', function(){ applyLevel(parseInt(b.dataset.level,10)); });
+  });
+  applyLevel(2); // default: plain + analogy
+
+  // reading progress
+  var prog = document.getElementById('progress');
+  function onScroll(){
+    var h = document.documentElement;
+    var max = h.scrollHeight - h.clientHeight;
+    prog.style.width = (max > 0 ? (h.scrollTop / max) * 100 : 0) + '%';
+  }
+  document.addEventListener('scroll', onScroll, {passive:true});
+  onScroll();
+
+  // mobile TOC drawer
+  var toc = document.getElementById('toc');
+  var navBtn = document.getElementById('navtoggle');
+  navBtn.addEventListener('click', function(){
+    var open = toc.classList.toggle('open');
+    navBtn.setAttribute('aria-expanded', open);
+  });
+  toc.addEventListener('click', function(e){
+    if(e.target.tagName === 'A'){ toc.classList.remove('open'); navBtn.setAttribute('aria-expanded', false); }
+  });
+
+  // active-section highlighting
+  var links = Array.prototype.slice.call(document.querySelectorAll('.toc a'));
+  var map = {};
+  links.forEach(function(a){
+    var id = a.getAttribute('href').slice(1);
+    var el = document.getElementById(id);
+    if(el) map[id] = a;
+  });
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(en){
+      if(en.isIntersecting){
+        links.forEach(function(a){ a.classList.remove('active'); });
+        var a = map[en.target.id];
+        if(a){ a.classList.add('active'); }
+      }
+    });
+  }, {rootMargin:'-20% 0px -70% 0px', threshold:0});
+  Object.keys(map).forEach(function(id){ io.observe(document.getElementById(id)); });
+})();
+</script>
+</body>
+</html>

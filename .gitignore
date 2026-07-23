@@ -1,4 +1,6 @@
+/.cache
+/archive.txt
+/campaign.state
+/presets/
+/axiom-snapshot.ppm
 /target
-/out
-*.png
-axiom_snapshot_*.png

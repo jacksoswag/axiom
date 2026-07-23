@@ -6,15 +6,16 @@ on:
   pull_request:
 
 jobs:
-  validate:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
-      # Headless build: the whole engine minus the native window/GPU features,
-      # which need a display and a GPU adapter CI does not have.
-      - name: Build (headless)
-        run: cargo build --no-default-features --release
-      - name: Validate every subsystem
-        run: cargo run --no-default-features --release -- validate
+      # Library and headless binary only. `--no-default-features` drops the `viewer`
+      # feature, so eframe and its display libraries never enter the build.
+      - run: cargo fmt --all -- --check
+      - run: cargo test --no-default-features --all-targets
+      - run: cargo clippy --no-default-features --all-targets -- -D warnings
