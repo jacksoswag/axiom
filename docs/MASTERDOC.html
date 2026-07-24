@@ -744,7 +744,7 @@ activity(q) = |rho_t(q) - rho_(t-1)(q)|</code></pre>
       <summary><span class="badge">Technical</span><span class="stitle">Immutable state, mutable manifest</span><span class="chev">›</span></summary>
       <div class="body">
         <p>State files are immutable. Saving writes a temporary sibling, flushes it, and publishes it without replacing an existing final name. The mutable manifest is written atomically only after its state file exists, so it can advance the latest checkpoint id safely.</p>
-        <p>Loading validates both records and installs the saved interaction norms directly rather than recalculating them, which avoids platform-dependent calibration drift. A round-trip preserves every particle bit, trait bit, tick, and genome gene, and a restored world reaches the same state hash after 10,000 further steps.</p>
+        <p>Loading validates both records and installs the saved interaction norms directly rather than recalculating them, which avoids platform-dependent calibration drift. A round-trip preserves every particle bit, trait bit, tick, and genome gene, and a restored world continues bit-identically for 10,000 further steps.</p>
         <p>A world compares against a recipe by comparing the genome it was built from. Decoding is deterministic, so genome equality answers the question exactly. Version mismatches fail closed; there is no migration path in either durable format.</p>
       </div>
     </details>

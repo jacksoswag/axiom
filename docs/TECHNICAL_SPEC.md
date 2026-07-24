@@ -236,14 +236,13 @@ Bounds clamp every child. Both scales are tuning fields.
 
 Each generation performs one deterministic transaction:
 
-1. Freeze the archive descriptor snapshot.
-2. Recompute current novelty for archive entries against that snapshot.
-3. Choose parents by novelty tournament, goal expedition, or random restart.
-4. Evaluate the batch in parallel, preserving batch order.
-5. Apply the binary gate.
-6. Score viable candidates against the same frozen snapshot.
-7. Merge candidates, recompute crowding on the combined set, and enforce capacity without insertion-order dependence.
-8. Queue a stratified subset for longer evaluation.
+1. Freeze the archive descriptor snapshot; its current novelty is fresh from the previous merge.
+2. Choose parents by novelty tournament, goal expedition, or random restart.
+3. Evaluate the batch in parallel, preserving batch order.
+4. Apply the binary gate.
+5. Score viable candidates against the same frozen snapshot.
+6. Merge candidates, recompute current novelty and crowding on the combined set, and enforce capacity without insertion-order dependence.
+7. Queue a stratified subset for longer evaluation.
 
 Admission novelty is provenance. Current novelty controls parent choice and capacity. The two carry different names in storage.
 
@@ -306,10 +305,12 @@ An archive entry stores a discovered genome and its behavior evidence. A checkpo
 
 ```text
 WorldManifest
-  world_id, simulator_version, genome_layout_version, descriptor_version
-  resolved parameters and genome
-  seed, tick, extent, softening, timestep
+  world_id, simulator_version, descriptor_version, genome_layout_version
   render recipe
+  campaign envelope: particle count, dimensionality, anchors, radius, rate, seed, shell and bump caps
+  resolved box size, tick
+  measured interaction norms
+  full capped genome
   latest checkpoint id
 
 WorldState checkpoint
@@ -323,7 +324,7 @@ WorldState checkpoint
 
 Loading validates both records, reconstructs the world, restores tick and particle state, and installs the saved interaction norms directly. Restore never recalculates those norms, which avoids platform-dependent calibration drift.
 
-Checkpoint identities are simulator v2, genome layout v2, descriptor v5, render recipe v1, manifest binary v3, and state binary v1. Manifest and state files carry independent checksums.
+Checkpoint identities are simulator v3, genome layout v2, descriptor v5, render recipe v1, manifest binary v4, and state binary v1. Manifest and state files carry independent checksums.
 
 A world compares against a recipe by comparing the genome it was built from. Decoding is deterministic, so genome equality answers the question exactly; measured norms are excluded because checkpoints save them separately.
 
@@ -389,17 +390,17 @@ The reference density backend runs on the CPU at modest resolution and defines f
 
 These are code-level behaviors covered by the repository's tests. They do not establish the product target.
 
-**Physics and traits.** One-hot traits match the discrete pair-specific step within float tolerance. Hat memberships sum to one and activate at most two anchors. Measured norms stay finite and positive for every active pair. Grid and all-pairs stepping agree on a seeded fixture. The step loop takes its anchor count from whatever genome it is handed.
+**Physics and traits.** Hat memberships sum to one, activate at most two adjacent anchors, and are exactly one-hot at an anchor. Trait seeding reproduces the logit histogram exactly. Grid and all-pairs neighbor walks agree on a seeded fixture. A seeded simulation is bit-reproducible, and every anchor pair calibrates a finite, positive measured norm.
 
-**Descriptor and search.** A planted separated-biome world differs from a uniformly blended world even when their global radial distributions are close. Uniform, collapsed, frozen, fragile, single-blob, and bicontinuous fixtures fail or pass the intended named clauses. Raising a gate threshold rejects a world that passed the default. Generation results stay reproducible across thread counts. Reordering a viable batch does not change the retained archive set. Current novelty changes when archive density changes while admission novelty stays stable.
+**Descriptor and search.** A planted separated-biome world differs from a uniformly blended world even when their global radial distributions are close. Uniform, collapsed, frozen, fragile, single-blob, and bicontinuous fixtures fail or pass the intended named clauses. Raising a gate threshold rejects a world that passed the default. Seeded parallel generations reproduce exactly. Reordering a viable batch does not change the retained archive set. Current novelty changes when archive density changes while admission novelty stays stable.
 
 **Tuning.** Every knob round-trips through its own displayed text. Knob keys are unique. The experiment digest separates measurement regimes from search effort: batch, generations, seed, capacity, and promotion budget leave it unchanged, while gates, mutation scales, repair settings, and lane shares change it. Lane counts always sum to the batch at every size.
 
 **Learning.** Grouped splits keep every lineage in one partition. Synthetic persistence data with a known signal produces calibrated ranking above chance. A deliberately useless model loses scheduler authority.
 
-**Durability.** A checkpoint round-trip preserves every particle bit, trait bit, tick, and genome gene. A restored world reaches the same state hash after 10,000 further steps. Corrupt length, checksum, version, and non-finite data produce named errors. An archive round-trips its tuning header and refreshes current novelty on load.
+**Durability.** A checkpoint round-trip preserves every particle bit, trait bit, tick, and genome gene. A restored world continues bit-identically for 10,000 further steps. Corrupt length, checksum, version, and non-finite data produce named errors. An archive round-trips its tuning header and refreshes current novelty on load.
 
-**Rendering.** Opposite torus faces sample equal density and produce no visible crack. Pausing the world freezes the density field and emission. A particle bridge becomes connected material while separated clusters retain a void.
+**Rendering.** Opposite torus faces sample equal density and produce no visible crack. The density field is a pure function of particle state. A particle bridge becomes connected material while separated clusters retain a void.
 
 ## 16. The honest ceiling
 
@@ -408,7 +409,7 @@ The largest unknown is whether Particle-Lenia can produce a bicontinuous carrier
 | Decision | Evidence needed to change it |
 |---|---|
 | Keep Particle-Lenia as the world engine | A three-dimensional Flow-Lenia prototype wins at equal runtime on persistence, recovery, bicontinuity, and diversity. |
-| Keep pair-indexed trait controls | An equal-budget search shows no meaningful loss from factorization and the one-hot fixture still passes. |
+| Keep pair-indexed trait controls | An equal-budget search shows no meaningful loss from factorization and memberships stay exactly one-hot at anchors. |
 | Keep the hand-designed descriptor | A learned visual goal space improves held-out human diversity without collapsing physical diversity. |
 | Keep the reference renderer on CPU | Measured field or frame cost blocks the target particle count. |
 
