@@ -151,8 +151,8 @@ let term = // this shell's contribution at this distance
 - **Derive the minimum.** No reflexive Debug, PartialEq, or Default without a caller.
 - **State performance reasoning in prose where the reader hits it.** No #[inline], no unsafe, no
   unexplained micro-optimization.
-- **No test module in a leaf file.** Tests live where behavior is composed, and earn their place
-  by failing for a reason that matters.
+- **No `#[cfg(test)]` module anywhere under src/, ever.** Tests live in `tests/` outside src/,
+  exercising public behavior, and earn their place by failing for a reason that matters.
 
 ---
 
@@ -168,7 +168,7 @@ defect if added:
 - pub(crate) ceremony (items are pub or private)
 - a builder for a two-field struct
 - reflexive derives or a Default impl nothing calls
-- mod tests in every file
+- a `#[cfg(test)]` module in any src/ file (tests live in `tests/`)
 - blank-line padding between methods
 - British spellings
 - markdown, backticks, or non-keyboard characters inside comments
