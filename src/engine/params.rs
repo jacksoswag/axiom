@@ -16,3 +16,14 @@ pub struct Params {
     pub interactions: Vec<f32>, // flat pair-block genes, source-major, decoded by Matrix::derive()
     pub box_len: f32, // resolve::Probe derives this, the caller fills it in
 }
+impl Params {
+    /// Genes in one pair block: amp/peak/width per shell and per bump, then the directed weight.
+    pub fn pair_stride(&self) -> usize { 3 * (self.shells + self.bumps) + 1 }
+    /// Full genome length: coordination, one logit per anchor, then anchor_count^2 pair blocks.
+    pub fn gene_len(&self) -> usize { 1 + self.anchor_count + self.anchor_count * self.anchor_count * self.pair_stride() }
+    /// Where pair (source, destination)'s block sits in a full genome.
+    pub fn pair_genes(&self, source: usize, destination: usize) -> std::ops::Range<usize> {
+        let start = 1 + self.anchor_count + (source * self.anchor_count + destination) * self.pair_stride();
+        start..start + self.pair_stride()
+    }
+}
