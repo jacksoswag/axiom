@@ -42,6 +42,8 @@ impl Caps {
     }
     /// Full genome length for this shape.
     pub fn gene_len(&self) -> usize { self.skeleton().gene_len() }
+    /// Genes in one pair block, via the same layout helper the decoder uses.
+    pub fn pair_stride(&self) -> usize { self.skeleton().pair_stride() }
     /// Runs the expensive reference measurement, once per campaign.
     pub fn probe(&self) -> Probe { Probe::new(&self.skeleton()) }
     /// Decode a full genome into simulation-ready Params: the box resolved from the probe, then

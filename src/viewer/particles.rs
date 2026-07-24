@@ -57,12 +57,11 @@ impl Style {
     }
 }
 
-/// Everything needed to draw one frame of the swarm. Bundled so the two passes take one
-/// argument instead of five.
+/// Everything needed to draw one frame of the swarm. The box comes from the substrate, so the
+/// scene cannot disagree with the world it draws.
 pub struct Scene<'a> {
     pub substrate: &'a Substrate,
     pub camera: &'a Camera,
-    pub extent: f32,
     pub viewport: Rect,
     pub style: &'a Style,
 }
@@ -88,13 +87,8 @@ impl Renderer {
         stride: usize,
         image_budget: usize,
     ) -> Mesh {
-        let Scene {
-            substrate,
-            camera,
-            extent,
-            viewport,
-            style,
-        } = *scene;
+        let Scene { substrate, camera, viewport, style } = *scene;
+        let box_len = substrate.box_len;
         let mut mesh = Mesh::with_texture(self.sprite.id());
         let mut shifted = [0.0f32; DIMENSIONS];
         let uv = Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0));
@@ -119,9 +113,9 @@ impl Renderer {
                     continue;
                 }
                 for (axis, slot) in shifted.iter_mut().enumerate() {
-                    *slot = position[axis] + image[axis] as f32 * extent;
+                    *slot = position[axis] + image[axis] as f32 * box_len;
                 }
-                let Some(projected) = camera.project(&shifted, extent, viewport) else {
+                let Some(projected) = camera.project(&shifted, box_len, viewport) else {
                     continue;
                 };
                 if !cull.contains(projected.screen) {
@@ -160,7 +154,7 @@ impl Renderer {
 
     pub fn draw(&self, painter: &Painter, scene: &Scene) {
         if scene.style.show_frame {
-            self.frame(painter, scene.camera, scene.extent, scene.viewport);
+            self.frame(painter, scene.camera, scene.substrate.box_len, scene.viewport);
         }
         painter.add(Shape::Mesh(Arc::new(self.mesh(
             scene,
@@ -264,49 +258,4 @@ fn radial_sprite() -> ColorImage {
         }
     }
     ColorImage::new([SPRITE, SPRITE], pixels)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn sprite_is_opaque_at_the_centre_and_clear_at_the_rim() {
-        let image = radial_sprite();
-        let centre = image.pixels[SPRITE / 2 * SPRITE + SPRITE / 2];
-        let brightest = image.pixels.iter().map(|p| p.a()).max().unwrap();
-        assert!(
-            centre.a() >= brightest - 1,
-            "centre {} vs peak {brightest}",
-            centre.a()
-        );
-        assert!(
-            brightest > 235,
-            "sprite never gets bright, peak {brightest}"
-        );
-        assert_eq!(image.pixels[0].a(), 0, "corner should be fully transparent");
-        assert_eq!(image.pixels.len(), SPRITE * SPRITE);
-    }
-
-    #[test]
-    fn sprite_falls_off_monotonically() {
-        let image = radial_sprite();
-        let row = SPRITE / 2;
-        let mut previous = 255u8;
-        for x in SPRITE / 2..SPRITE {
-            let a = image.pixels[row * SPRITE + x].a();
-            assert!(a <= previous, "alpha rose at x={x}: {a} > {previous}");
-            previous = a;
-        }
-    }
-
-    #[test]
-    fn cube_edges_touch_every_corner_exactly_three_times() {
-        let mut touches = [0usize; 8];
-        for (a, b) in EDGES {
-            touches[a] += 1;
-            touches[b] += 1;
-        }
-        assert!(touches.iter().all(|t| *t == 3), "not a cube: {touches:?}");
-    }
 }

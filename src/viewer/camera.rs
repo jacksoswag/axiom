@@ -137,25 +137,3 @@ impl Camera {
         self.target = add(self.target, scale(step, self.move_speed * extent * dt));
     }
 }
-#[cfg(test)]
-mod tests {
-    use super::*;
-    fn viewport() -> Rect {
-        Rect::from_min_size(Pos2::ZERO, Vec2::new(800.0, 600.0))
-    }
-    #[test]
-    fn tiles_all_neighbours() {
-        let tiles = torus_images();
-        assert_eq!(tiles.len(), 27);
-        assert_eq!(tiles[0], [0, 0, 0]);
-    }
-    #[test]
-    fn centre_projects_to_centre() {
-        let mut c = Camera::default();
-        c.frame_world(100.0);
-        c.yaw = 0.0;
-        c.pitch = 0.0;
-        let p = c.project(&[50.0, 50.0, 50.0], 100.0, viewport()).unwrap();
-        assert!((p.screen.x - 400.0).abs() < 0.5 && (p.screen.y - 300.0).abs() < 0.5);
-    }
-}

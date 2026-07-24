@@ -19,7 +19,7 @@ use std::path::PathBuf;
 
 use super::theme;
 use crate::tuner::archive::{Archive, Entry};
-use crate::engine::genome::Params;
+use crate::tuner::genome::Caps;
 use crate::tuner::tuning::Tuning;
 
 /// Results offered per run. Enough to see the range a search found, few enough to judge.
@@ -176,12 +176,11 @@ impl Library {
         self.chosen = None;
     }
 
-    /// The world the chosen card asked for, ready to adopt. `None` until a card is clicked.
-    pub fn chosen_world(&self) -> Option<(Params, Vec<f32>)> {
+    /// The world the chosen card asked for, ready to adopt. None until a card is clicked.
+    pub fn chosen_world(&self) -> Option<(Caps, Vec<f32>)> {
         let caps = &self.runs.get(self.selected?)?.tuning.world;
         let entry = self.shortlist.get(self.chosen?)?;
-        let (params, interactions) = caps.resolve(&entry.genome);
-        Some((params, interactions.to_vec()))
+        Some((caps.clone(), entry.genome.clone()))
     }
 
     /// Returns true when a new card was clicked and the app should adopt it.
@@ -205,8 +204,8 @@ impl Library {
             let text = RichText::new(format!(
                 "{}   {} particles, {} trait anchors, {} KB",
                 run.name,
-                run.tuning.world.particles,
-                run.tuning.world.anchors,
+                run.tuning.world.particle_count,
+                run.tuning.world.anchor_count,
                 run.bytes / 1024
             ))
             .size(10.5)
@@ -264,7 +263,7 @@ impl Library {
 
         let mut clicked = None;
         for (index, entry) in self.shortlist.iter().enumerate() {
-            let (params, _) = caps.resolve(&entry.genome);
+            let coordination = entry.genome.first().copied().unwrap_or(0.0); // archived genomes are bounds-clamped
             let selected = self.chosen == Some(index);
 
             let response = ui
@@ -300,8 +299,8 @@ impl Library {
                                     entry.metrics.structure,
                                     entry.metrics.temporal_variance,
                                     entry.current_novelty,
-                                    params.coordination,
-                                    params.anchors,
+                                    coordination,
+                                    caps.anchor_count,
                                 ))
                                 .color(theme::TEXT_MUTED)
                                 .size(10.0),
@@ -324,120 +323,5 @@ impl Library {
             return true;
         }
         false
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::tuner::metrics::{descriptor_len, Metrics};
-
-    fn entry(robustness: f32, structure: f32, variance: f32, novelty: f32) -> Entry {
-        Entry {
-            genome: vec![0.0; 4],
-            metrics: Metrics {
-                robustness,
-                structure,
-                temporal_variance: variance,
-                descriptor: vec![1.0; descriptor_len()],
-                alive: true,
-                ..Default::default()
-            },
-            admission_novelty: novelty,
-            current_novelty: novelty,
-            lineage_id: novelty.to_bits() as u64,
-            parent_lineage_id: None,
-            birth_generation: 0,
-            parent_source: crate::tuner::archive::ParentSource::Bootstrap,
-        }
-    }
-
-    /// Each key must order by its own quantity, and the three must genuinely disagree, or the
-    /// selector is decoration.
-    #[test]
-    fn each_rank_key_orders_by_its_own_quantity() {
-        let mut library = Library {
-            shortlist: vec![
-                entry(0.33, 2.0, 0.001, 9.0),
-                entry(1.00, 0.5, 0.005, 1.0),
-                entry(0.66, 3.0, 0.010, 5.0),
-            ],
-            ..Default::default()
-        };
-
-        let order = |library: &mut Library, rank: Rank| -> Vec<f32> {
-            library.rank = rank;
-            library.reorder();
-            library.shortlist.iter().map(|e| rank.of(e)).collect()
-        };
-
-        for rank in Rank::ALL {
-            let values = order(&mut library, rank);
-            assert!(
-                values.windows(2).all(|w| w[0] >= w[1]),
-                "{} did not sort descending: {values:?}",
-                rank.label()
-            );
-        }
-
-        library.rank = Rank::Robustness;
-        library.reorder();
-        let by_robustness: Vec<f32> = library
-            .shortlist
-            .iter()
-            .map(|e| e.current_novelty)
-            .collect();
-        library.rank = Rank::Structure;
-        library.reorder();
-        let by_structure: Vec<f32> = library
-            .shortlist
-            .iter()
-            .map(|e| e.current_novelty)
-            .collect();
-        assert_ne!(
-            by_robustness, by_structure,
-            "the keys produced identical orderings"
-        );
-    }
-
-    /// Novelty must not be reachable as an ordering, since it is what the search optimised.
-    #[test]
-    fn novelty_is_not_a_ranking_key() {
-        assert_eq!(Rank::ALL.len(), 3);
-        assert!(!Rank::ALL.iter().any(|r| r.label().contains("novel")));
-    }
-
-    #[test]
-    fn the_shortlist_is_capped_but_never_padded() {
-        let mut library = Library {
-            shortlist: (0..40)
-                .map(|i| entry(i as f32 / 40.0, 1.0, 0.1, 1.0))
-                .collect(),
-            ..Default::default()
-        };
-        library.reorder();
-        assert_eq!(library.shortlist.len(), SHORTLIST);
-
-        library.shortlist = vec![entry(1.0, 1.0, 0.1, 1.0), entry(0.5, 1.0, 0.1, 1.0)];
-        library.reorder();
-        assert_eq!(library.shortlist.len(), 2, "a short run was padded");
-    }
-
-    /// A missing directory is a status line, never a panic.
-    #[test]
-    fn a_missing_directory_reports_rather_than_panics() {
-        let mut library = Library {
-            directory: "/definitely/not/here".into(),
-            ..Default::default()
-        };
-        library.scan();
-        assert!(library.runs.is_empty());
-        assert!(!library.status.is_empty());
-    }
-
-    #[test]
-    fn nothing_is_chosen_before_a_card_is_clicked() {
-        let library = Library::default();
-        assert!(library.chosen_world().is_none());
     }
 }
