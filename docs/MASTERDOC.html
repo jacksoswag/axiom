@@ -475,7 +475,7 @@ E_i = -sum_a sum_b alpha_b(c_i) w_ab G_ab(Uhat_ab(i))</code></pre>
       <summary><span class="badge">Technical</span><span class="stitle">One probe, reused</span><span class="chev">›</span></summary>
       <div class="body">
         <p>A density probe measures the nominal coordination of a uniform population at a trial extent, then a genome's coordination gene rescales that reference by the dimensional root. The probe depends only on particle count, dimensionality, and radius, so a campaign measures it once and threads the result through every candidate rather than re-measuring per genome.</p>
-        <p>Interaction norms are calibrated separately, on a deterministic uniform seed with the resolved trait distribution, using the same torus distance, softening, and memberships as the real rollout. A clumped live state never becomes the density reference.</p>
+        <p>Interaction norms are calibrated separately, on a deterministic uniform seed with uniform anchor traits so every anchor pair sees reference mass, using the same torus distance, softening, and memberships as the real rollout. A clumped live state never becomes the density reference.</p>
       </div>
     </details>
   </section>
@@ -494,9 +494,9 @@ pair block =
   [directed weight]</code></pre>
 
     <details class="layer technical">
-      <summary><span class="badge">Technical</span><span class="stitle">Self-describing length</span><span class="chev">›</span></summary>
+      <summary><span class="badge">Technical</span><span class="stitle">Shape rides with the genes</span><span class="chev">›</span></summary>
       <div class="body">
-        <p>Anchor count is recovered from the genome's own length by inverting <code>1 + M + M² · genes_per_pair</code>. That quadratic is strictly increasing in <code>M</code>, so a length admits at most one anchor count. Nothing outside the genome has to declare its shape, which is what lets one search carry genomes of differing anchor counts.</p>
+        <p>Anchor count and the shell and bump caps ride beside the genes in the shared parameter set, and the pair-block stride follows from those counts. Anchor count and dimensionality are read from the data, never fixed by a constant, so the step loop takes its shape from whatever genome it is handed.</p>
       </div>
     </details>
   </section>
@@ -758,11 +758,12 @@ activity(q) = |rho_t(q) - rho_(t-1)(q)|</code></pre>
       <table>
         <thead><tr><th>Module</th><th>Responsibility</th></tr></thead>
         <tbody>
-          <tr><td class="mono">engine/substrate · trait · kernel · rng · grid</td><td>Storage, anchor basis, Gaussian mixtures, seeded randomness, neighbour lookup.</td></tr>
-          <tr><td class="mono">engine/genome</td><td><code>Params</code>, <code>Caps</code>, <code>Layout</code>: the flat-vector codec and its bounds.</td></tr>
-          <tr><td class="mono">engine/geometry</td><td>Derived extent and the measured density reference.</td></tr>
-          <tr><td class="mono">engine/interaction</td><td>The pair control net, decoded and calibrated.</td></tr>
-          <tr><td class="mono">engine/world · lenia</td><td>Authoritative state and seeding; the force step.</td></tr>
+          <tr><td class="mono">engine/substrate · trait · kernel</td><td>Storage with a private spatial index, anchor basis, Gaussian mixtures, periodic distance.</td></tr>
+          <tr><td class="mono">engine/params</td><td><code>Params</code>: the rollout parameter set every component shares, genome genes included.</td></tr>
+          <tr><td class="mono">engine/resolve</td><td>Derived box size from the measured density reference.</td></tr>
+          <tr><td class="mono">engine/matrix</td><td>The pair control net, derived and calibrated.</td></tr>
+          <tr><td class="mono">engine/sim · lenia</td><td>Authoritative run state; the force step.</td></tr>
+          <tr><td class="mono">util</td><td>Seeded randomness and the crate's one hash.</td></tr>
           <tr><td class="mono">tuner/tuning</td><td><code>Tuning</code> and the knob registry.</td></tr>
           <tr><td class="mono">tuner/metrics · persistence · viability</td><td>Descriptor v5, H0 barcodes, named binary clauses.</td></tr>
           <tr><td class="mono">tuner/rollout · novelty · search</td><td>Tiered evaluation, descriptor distance, the generation transaction.</td></tr>

@@ -34,7 +34,7 @@ c_i in [0, 1]    continuous trait
 
 Position is the only dynamical particle state. The update is first-order gradient descent on the Particle-Lenia energy. Traits are fixed for the duration of a rollout; spatial self-organization can sort that continuum into niches, but trait motion, birth, death, and inheritance require a separate biological model and are outside this contract.
 
-A world also stores the resolved genome, the pair control net with its measured norms, derived geometry, timestep, seed, and tick. Density volumes, meshes, spatial indexes, and GPU buffers are caches that rebuild from that state.
+A run's authoritative state is reconstructible from its parameter set alone: genome genes, derived box size, timestep, and seed, plus the pair control net with its measured norms and the tick count. Density volumes, meshes, spatial indexes, and GPU buffers are caches that rebuild from that state.
 
 ## 3. Continuous trait interaction field
 
@@ -83,7 +83,7 @@ Only `G'` enters movement. A zero mixture amplitude disables a component. Kernel
 
 ### 3.4 Norm calibration
 
-`norm_ab` is the mean `U_ab` measured on a deterministic uniform spatial seed with the resolved trait distribution, using the same kernel, torus distance, softening, and memberships as the real rollout. It runs whenever the genome or trait distribution changes. A clumped live state never becomes the density reference.
+`norm_ab` is the mean `U_ab` measured on a deterministic uniform reference population: a fixed calibration seed, uniform positions, and uniform anchor traits, using the same kernel, torus distance, softening, and memberships as the real rollout. Calibration runs when a simulation is constructed, so every anchor pair sees reference mass. A clumped live state never becomes the density reference.
 
 ### 3.5 Derived geometry
 
@@ -91,7 +91,7 @@ Extent falls out of particle count, interaction radius, dimensionality, and the 
 
 ## 4. Genome
 
-The genotype is one bounded `Vec<f32>`. `Caps` decodes the world prefix and `Layout` decodes the pair blocks.
+The genotype is one bounded `Vec<f32>`. Its shape, anchor count and the shell and bump caps, rides beside the genes in the shared parameter set, and the pair-block stride follows from those counts.
 
 ```text
 [ coordination ]
@@ -104,7 +104,7 @@ pair block =
   [directed weight]
 ```
 
-Anchor count is recovered from the genome's own length by inverting `1 + M + M^2 * genes_per_pair`. That quadratic is strictly increasing in `M`, so a length admits at most one anchor count. The genome is therefore self-describing, and one search can carry genomes of differing anchor counts without reconfiguration.
+Anchor count and dimensionality are read from the parameter set, never fixed by a constant, so the step loop takes its shape from whatever genome it is handed.
 
 Coordination stays a gene in a calibrated range because it changes physical density and belongs to the learned world law. Trait-distribution logits select an initial population density over trait bins; the decoder applies a small floor before normalization, then jitters traits deterministically inside each bin. Every evaluation seed receives the same trait histogram and a different reproducible spatial arrangement.
 
@@ -356,16 +356,15 @@ The reference density backend runs on the CPU at modest resolution and defines f
 
 | Module | Responsibility |
 |---|---|
-| `engine/substrate.rs` | Particle positions and continuous traits. |
+| `engine/substrate.rs` | Particle positions, traits, box geometry, and the private spatial index. |
 | `engine/trait.rs` | Anchor basis, active memberships, trait seeding. |
-| `engine/kernel.rs` | Gaussian mixtures, analytic derivatives, torus displacement. |
-| `engine/rng.rs` | Deterministic xorshift stream. |
-| `engine/grid.rs` | Periodic neighbour enumeration. |
-| `engine/genome.rs` | `Params`, `Caps`, `Layout`: the flat-vector codec and its bounds. |
-| `engine/geometry.rs` | Derived extent and the measured density reference. |
-| `engine/interaction.rs` | The pair control net, decoded and calibrated. |
-| `engine/world.rs` | Authoritative world state, seeding, and the step driver. |
+| `engine/kernel.rs` | Gaussian shell mixtures, analytic slopes, periodic distance. |
+| `engine/params.rs` | `Params`: the rollout parameter set every component shares, genome genes included. |
+| `engine/matrix.rs` | The pair control net, derived from the genome and calibrated. |
+| `engine/resolve.rs` | Derived box size from the measured density reference. |
 | `engine/lenia.rs` | The continuous-trait force step. |
+| `engine/sim.rs` | Authoritative run state, reconstructible from `Params` alone. |
+| `util.rs` | Deterministic xorshift stream and the crate's one hash. |
 | `tuner/tuning.rs` | `Tuning` and the knob registry. |
 | `tuner/metrics.rs` | Versioned 53-value descriptor and window statistics. |
 | `tuner/persistence.rs` | H0 barcode computation. |
