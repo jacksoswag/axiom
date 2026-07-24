@@ -54,7 +54,7 @@ struct Edge {
 
 /// Build the H0 barcode. `cutoff` should be the kernel reach the grid was built for.
 pub fn h0(substrate: &Substrate, extent: f32, cutoff: f32, grid: &Grid) -> Barcode {
-    let count = substrate.len();
+    let count = substrate.traits.len();
     if count == 0 || !cutoff.is_finite() || cutoff <= 0.0 {
         return Barcode::zeros();
     }
@@ -126,7 +126,7 @@ pub fn mass(raw: &Barcode) -> Vec<f32> {
 }
 
 fn collect_edges(substrate: &Substrate, extent: f32, cutoff: f32, grid: &Grid) -> Vec<Edge> {
-    let count = substrate.len();
+    let count = substrate.traits.len();
     let mut edges = Vec::new();
 
     for i in 0..count {
@@ -224,13 +224,16 @@ impl Union {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::engine::rng::Rng;
+    use crate::util::Rng;
 
-    fn swarm(positions: Vec<f32>) -> Substrate {
+    fn swarm(positions: Vec<f32>, extent: f32) -> Substrate {
         let count = positions.len() / 3;
         Substrate {
             positions,
             traits: vec![0.0; count],
+            bound_len: extent,
+            softening: extent * 1e-3,
+            dimensions: 3,
         }
     }
 
@@ -240,12 +243,13 @@ mod tests {
             (0..count * 3)
                 .map(|_| rng.unit() * extent)
                 .collect(),
+            extent,
         )
     }
 
     fn built(substrate: &Substrate, extent: f32, cutoff: f32) -> Grid {
         let mut grid = Grid::default();
-        grid.rebuild(&substrate.positions, substrate.dims(), extent, cutoff);
+        grid.rebuild(&substrate.positions, substrate.dimensions, extent, cutoff);
         grid
     }
 
@@ -319,7 +323,7 @@ mod tests {
                 particles.push(centre + rng.range(-4.0, 4.0));
             }
         }
-        let blobs = swarm(particles);
+        let blobs = swarm(particles, extent);
         let clustered = h0(&blobs, extent, cutoff, &built(&blobs, extent, cutoff));
         assert_eq!(
             clustered.components, 3,
@@ -402,7 +406,7 @@ mod tests {
                 particles.push(centre + rng.range(-4.0, 4.0));
             }
         }
-        let blobs = swarm(particles);
+        let blobs = swarm(particles, extent);
         let gas = uniform(270, extent, 8);
 
         let blob_profile = mass(&h0(&blobs, extent, cutoff, &built(&blobs, extent, cutoff)));
@@ -423,10 +427,10 @@ mod tests {
 
     #[test]
     fn survives_an_empty_swarm_and_non_finite_positions() {
-        let empty = swarm(Vec::new());
+        let empty = swarm(Vec::new(), 100.0);
         assert_eq!(h0(&empty, 100.0, 10.0, &Grid::default()).components, 0);
 
-        let broken = swarm(vec![f32::NAN, 1.0, 1.0, 50.0, 50.0, 50.0, 51.0, 51.0, 51.0]);
+        let broken = swarm(vec![f32::NAN, 1.0, 1.0, 50.0, 50.0, 50.0, 51.0, 51.0, 51.0], 100.0);
         let barcode = h0(&broken, 100.0, 10.0, &Grid::default());
         assert!(barcode.components <= 3);
     }

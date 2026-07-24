@@ -15,6 +15,7 @@
 
 use crate::engine::genome::Caps;
 use crate::tuner::learning::{ContinuationQuotas, LogisticConfig};
+use crate::util::Fnv;
 
 /// Isotropic and line-directed mutation scale, as a fraction of each gene's bounded range.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -230,13 +231,7 @@ impl Tuning {
     /// are excluded on purpose: they change how much searching happens, never how a result is
     /// measured or judged, so batches that differ only there may share a ledger.
     pub fn digest(&self) -> u64 {
-        let mut hash = 0xcbf2_9ce4_8422_2325u64;
-        let mut eat = |bytes: &[u8]| {
-            for byte in bytes {
-                hash ^= *byte as u64;
-                hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
-            }
-        };
+        let mut hash = Fnv::new();
         let Gates {
             structure_floor,
             structure_ceiling,
@@ -260,9 +255,9 @@ impl Tuning {
             dispersed_structure,
             collapsed_structure,
         ] {
-            eat(&value.to_bits().to_le_bytes());
+            hash.float(value);
         }
-        eat(&(sustained_windows as u64).to_le_bytes());
+        hash.bytes((sustained_windows as u64).to_le_bytes());
 
         let Repair {
             probes,
@@ -270,9 +265,9 @@ impl Tuning {
             recovery,
             min_effective_damage,
         } = self.repair;
-        eat(&(probes as u64).to_le_bytes());
+        hash.bytes((probes as u64).to_le_bytes());
         for value in [shake, recovery, min_effective_damage] {
-            eat(&value.to_bits().to_le_bytes());
+            hash.float(value);
         }
 
         let Mutation {
@@ -295,10 +290,10 @@ impl Tuning {
             stalled_novelty,
             stalled_expedition,
         ] {
-            eat(&value.to_bits().to_le_bytes());
+            hash.float(value);
         }
-        eat(&(self.discovery.stall_window as u64).to_le_bytes());
-        hash
+        hash.bytes((self.discovery.stall_window as u64).to_le_bytes());
+        hash.finish()
     }
 }
 

@@ -12,7 +12,7 @@ use eframe::egui::{self, Align2, Key, Order, Rect, RichText, Sense, Vec2};
 
 use crate::engine::world::World;
 use crate::engine::genome::Params;
-use crate::engine::geometry::Geometry;
+use crate::tuner::density;
 use camera::Camera;
 use material::Renderer as MaterialRenderer;
 use particles::{Renderer, Style};
@@ -25,7 +25,7 @@ const RAIL_WIDTH: f32 = 34.0;
 
 pub struct App {
     params: Params,
-    geometry: Geometry,
+    extent: f32,
     genome: Vec<f32>,
     world: World,
     camera: Camera,
@@ -57,13 +57,13 @@ impl App {
             bumps: 2,
             trait_logits: vec![0.0; 4],
         };
-        let geometry = params.geometry();
+        let extent = density::bound_len_for(&params);
         let genome = params
             .layout()
-            .default_genome(params.radius, geometry.extent);
-        let world = World::with_geometry(&params, &geometry, &genome);
+            .default_genome(params.radius, extent);
+        let world = World::with_extent(&params, extent, &genome);
         let mut camera = Camera::default();
-        camera.frame_world(geometry.extent);
+        camera.frame_world(extent);
         App {
             style: Style::default(),
             renderer: Renderer::new(ctx),
@@ -72,7 +72,7 @@ impl App {
             library: Library::default(),
             camera,
             params,
-            geometry,
+            extent,
             genome,
             world,
             material_enabled: true,
@@ -86,16 +86,16 @@ impl App {
 
     fn rebuild(&mut self) {
         self.params.trait_logits.resize(self.params.anchors, 0.0);
-        self.geometry = self.params.geometry();
+        self.extent = density::bound_len_for(&self.params);
         let layout = self.params.layout();
         if self.genome.len() != layout.genome_len() {
-            self.genome = layout.default_genome(self.params.radius, self.geometry.extent);
+            self.genome = layout.default_genome(self.params.radius, self.extent);
             self.status = "control-net shape changed, genome reset".into();
         } else {
-            layout.clamp(&mut self.genome, self.params.radius, self.geometry.extent);
+            layout.clamp(&mut self.genome, self.params.radius, self.extent);
         }
-        self.camera.frame_world(self.geometry.extent);
-        self.world = World::with_geometry(&self.params, &self.geometry, &self.genome);
+        self.camera.frame_world(self.extent);
+        self.world = World::with_extent(&self.params, self.extent, &self.genome);
         self.material.reset_history();
     }
 
@@ -104,13 +104,13 @@ impl App {
             return;
         };
         self.params = params;
-        self.geometry = self.params.geometry();
+        self.extent = density::bound_len_for(&self.params);
         self.params
             .layout()
-            .clamp(&mut genome, self.params.radius, self.geometry.extent);
+            .clamp(&mut genome, self.params.radius, self.extent);
         self.genome = genome;
-        self.camera.frame_world(self.geometry.extent);
-        self.world = World::with_geometry(&self.params, &self.geometry, &self.genome);
+        self.camera.frame_world(self.extent);
+        self.world = World::with_extent(&self.params, self.extent, &self.genome);
         self.material.reset_history();
     }
 
@@ -136,7 +136,7 @@ impl App {
                     material::Scene {
                         positions: &self.world.substrate.positions,
                         traits: &self.world.substrate.traits,
-                        extent: self.world.geometry.extent,
+                        extent: self.world.substrate.bound_len,
                         tick: self.world.tick,
                         camera: &self.camera,
                     },
@@ -156,14 +156,14 @@ impl App {
         particles::Scene {
             substrate: &self.world.substrate,
             camera: &self.camera,
-            extent: self.world.geometry.extent,
+            extent: self.world.substrate.bound_len,
             viewport,
             style: &self.style,
         }
     }
 
     fn navigate(&mut self, ui: &egui::Ui, response: &egui::Response, dt: f32) {
-        let extent = self.world.geometry.extent;
+        let extent = self.world.substrate.bound_len;
         let ctx = ui.ctx();
         if response.double_clicked() {
             self.set_capture(ctx, true);
@@ -270,7 +270,7 @@ impl App {
             );
         });
         egui::ScrollArea::vertical().show(ui, |ui| {
-            if controls::world_section(ui, &mut self.params, &self.geometry) {
+            if controls::world_section(ui, &mut self.params, self.extent) {
                 self.rebuild();
                 return;
             }
@@ -290,7 +290,7 @@ impl App {
                 &self.params,
                 &mut self.genome,
                 &mut self.style,
-                self.geometry.extent,
+                self.extent,
             ) {
                 self.world.set_genome(&self.params, &self.genome);
             }
@@ -349,12 +349,12 @@ pub fn write_reference_snapshot(
         return Err("snapshot dimensions must be positive".into());
     }
     let mut camera = Camera::default();
-    camera.frame_world(world.geometry.extent);
+    camera.frame_world(world.substrate.bound_len);
     camera.focal = height as f32;
     let image = material::reference_image(
         &world.substrate.positions,
         &world.substrate.traits,
-        world.geometry.extent,
+        world.substrate.bound_len,
         recipe,
         &camera,
         width,

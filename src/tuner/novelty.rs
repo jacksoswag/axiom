@@ -4,6 +4,7 @@ use crate::tuner::metrics::{
     descriptor_len, HETEROGENEITY_SIDES, HETEROGENEITY_VALUES, LAGS, RDF_BINS, TRAIT_BANDS,
 };
 use crate::tuner::persistence::BARS;
+use crate::util::Fnv;
 
 /// Neighbours averaged by novelty.  The value is part of the search contract, rather than a
 /// per-run tuning knob, so archived runs remain comparable.
@@ -27,14 +28,13 @@ pub fn neighborhood_key(descriptor: &[f32]) -> u64 {
         temporal_end..temporal_end + 2,
         temporal_end + 2..descriptor_len(),
     ];
-    ranges
-        .into_iter()
-        .fold(0xcbf2_9ce4_8422_2325, |hash, range| {
-            let width = range.len().max(1) as f32;
-            let mean = descriptor[range].iter().sum::<f32>() / width;
-            let quantized = (mean.clamp(0.0, 2.0) * 4.0).round() as u64;
-            (hash ^ quantized).wrapping_mul(0x0000_0100_0000_01b3)
-        })
+    let mut hash = Fnv::new();
+    for range in ranges {
+        let width = range.len().max(1) as f32;
+        let mean = descriptor[range].iter().sum::<f32>() / width;
+        hash.word((mean.clamp(0.0, 2.0) * 4.0).round() as u64);
+    }
+    hash.finish()
 }
 
 /// Euclidean distance in the versioned descriptor space.

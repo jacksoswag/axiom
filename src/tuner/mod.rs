@@ -7,6 +7,7 @@
 pub mod archive;
 pub mod campaign;
 pub mod checkpoint;
+pub mod density;
 pub mod learning;
 pub mod metrics;
 pub mod novelty;

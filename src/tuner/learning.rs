@@ -4,7 +4,7 @@
 //! `ponytail:` this deliberately stops at standardized linear models. Add a richer model
 //! only after a lineage-held-out report shows that these features leave useful signal behind.
 
-use crate::engine::rng::Rng;
+use crate::util::Rng;
 use std::cmp::Ordering;
 
 /// Names and order for one versioned numeric feature vector.

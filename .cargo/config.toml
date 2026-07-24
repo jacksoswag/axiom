@@ -1,3 +1,2 @@
-# Route build artifacts into .cache/ so the repo root stays clean.
 [build]
 target-dir = ".cache/target"

@@ -6,7 +6,6 @@ use super::camera::Camera;
 use super::material::{Recipe, Renderer as MaterialRenderer};
 use super::theme;
 use crate::engine::genome::Params;
-use crate::engine::geometry::Geometry;
 
 pub fn header(ui: &mut Ui, text: &str) {
     ui.add_space(2.0);
@@ -19,7 +18,7 @@ pub fn header(ui: &mut Ui, text: &str) {
 }
 
 /// Returns true only when the authoritative world must be reseeded.
-pub fn world_section(ui: &mut Ui, params: &mut Params, geometry: &Geometry) -> bool {
+pub fn world_section(ui: &mut Ui, params: &mut Params, extent: f32) -> bool {
     let mut rebuild = false;
     header(ui, "world");
     ui.label(
@@ -38,12 +37,9 @@ pub fn world_section(ui: &mut Ui, params: &mut Params, geometry: &Geometry) -> b
         )
         .changed();
     ui.label(
-        RichText::new(format!(
-            "extent {:.1}  derived from density",
-            geometry.extent
-        ))
-        .color(theme::TEXT_FAINT)
-        .size(10.0),
+        RichText::new(format!("extent {extent:.1}  derived from density"))
+            .color(theme::TEXT_FAINT)
+            .size(10.0),
     );
     rebuild |= ui
         .add(Slider::new(&mut params.radius, 1.0..=100.0).text("radius"))

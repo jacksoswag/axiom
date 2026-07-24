@@ -1,133 +1,76 @@
-//! One continuous-trait Particle-Lenia step.
-//!
-//! Each source trait contributes to at most two anchor channels and each receiver responds
-//! through at most two destination channels. The pair-indexed control net therefore preserves
+//! One Particle-Lenia simulation step.
+//! Each source trait contributes to 2 anchor channels and each receiver responds
+//! through 2 destination channels. The pair-indexed control matrix therefore preserves
 //! the discrete model exactly at anchor traits while keeping interpolation cheap.
 
-use crate::engine::grid::Grid;
-use crate::engine::interaction::Net;
-use crate::engine::kernel::{bump_and_slope, displacement_squared, growth};
-use crate::engine::r#trait::membership;
+use crate::engine::matrix::Matrix;
+use crate::engine::kernel::{strength_and_slope, distance_sq};
+use crate::engine::r#trait::memberships;
 use crate::engine::substrate::Substrate;
 use rayon::prelude::*;
 
 /// Advance positions by the closed-form local energy gradient of the pair-indexed anchor field.
-pub fn step(
-    sub: &mut Substrate,
-    net: &Net,
-    dt: f32,
-    extent: f32,
-    softening: f32,
-    grid: &Grid,
-) {
-    let count = sub.len();
-    let dims = sub.dims();
-    let positions = &sub.positions;
-    let anchors = net.anchors();
-    let pairs = net.pairs();
-    let inverse_extent = 1.0 / extent;
-    let softening_squared = softening * softening;
-    let reach_squared: Vec<f32> = pairs
-        .iter()
-        .map(|interaction| interaction.reach.powi(2))
-        .collect();
-    let mut delta = vec![0.0; positions.len()];
-    let memberships: Vec<[(usize, f32); 2]> = sub
-        .traits
-        .iter()
-        .map(|&trait_value| membership(trait_value, anchors).entries)
-        .collect();
+/// Owns the per-step spatial index rebuild, so a caller only needs to hand over the substrate.
+pub fn step(substrate: &mut Substrate, matrix: &Matrix, dt: f32) {
+    let dims = substrate.dimensions; // coordinates per particle
+    substrate.rebuild_grid(matrix.max_reach()); // re-bucket for this step's widest interaction radius
 
-    delta.par_chunks_mut(dims).enumerate().for_each_init(
-        || Scratch::new(pairs.len(), dims),
-        |scratch, (i, out)| {
-            let Scratch {
-                potential,
-                gradient,
-                displacement,
-            } = scratch;
-            potential.fill(0.0);
-            gradient.fill(0.0);
-            let position_i = &positions[i * dims..(i + 1) * dims];
-            let receiver = memberships[i];
+    let anchor_count = matrix.anchor_count;
+    let pairs = &matrix.interactions; // flat [anchors x anchors], source-major
+    let memberships = memberships(&substrate.traits, anchor_count); // each particle's up-to-2 active anchors
+    let reach_squared: Vec<f32> = pairs.iter().map(|interaction| interaction.reach.powi(2)).collect(); // once, squared to skip sqrt on the cutoff check
 
+    let mut delta = vec![0.0; substrate.positions.len()]; // this tick's position change, one slot per coordinate
+    delta.par_chunks_mut(dims).enumerate().for_each_init( // one chunk of dims floats per particle, indexed
+        || (vec![0.0; pairs.len()], vec![0.0; pairs.len() * dims], vec![0.0; dims]), // fresh scratch per rayon thread
+        |(potential, gradient, direction), (i, out)| { // potential, gradient, direction scratch
+            potential.fill(0.0); gradient.fill(0.0); // clear scratch left by the last particle this thread did
+            let i_pos = &substrate.positions[i * dims..(i + 1) * dims]; // this particle's own coordinates
+            let receiver = memberships[i]; // this particle's own up-to-2 active anchors
+
+            // For every neighbor j within reach, accumulate sensed potential K(d) and its gradient
+            // per (source, destination) anchor pair. Anchors with 0 weight don't contribute.
             let mut visit = |j: usize| {
-                if i == j {
-                    return;
-                }
-                let source = memberships[j];
-                let position_j = &positions[j * dims..(j + 1) * dims];
-                let squared = displacement_squared(
-                    position_i,
-                    position_j,
-                    extent,
-                    inverse_extent,
-                    displacement,
-                );
-                for &(source_anchor, source_weight) in &source {
-                    if source_weight <= 0.0 {
-                        continue;
-                    }
-                    for &(destination_anchor, destination_weight) in &receiver {
-                        if destination_weight <= 0.0 {
-                            continue;
-                        }
-                        let index = source_anchor * anchors + destination_anchor;
-                        if squared + softening_squared > reach_squared[index] {
-                            continue;
-                        }
-                        let distance = (squared + softening_squared).sqrt();
-                        let (kernel, kernel_prime) =
-                            bump_and_slope(distance, &pairs[index].shells);
-                        potential[index] += source_weight * kernel;
-                        let row = &mut gradient[index * dims..(index + 1) * dims];
-                        let scale = source_weight * kernel_prime / distance;
-                        for axis in 0..dims {
-                            row[axis] += scale * displacement[axis];
-                        }
+                if i == j { return; } // skip self
+                let source = memberships[j]; // neighbor's 2 active anchors
+                let j_pos = &substrate.positions[j * dims..(j + 1) * dims]; // neighbor's coordinates
+                let distance_sq = distance_sq(i_pos, j_pos, substrate, direction); // softened, fills per-axis buffer
+                let mut distance = -1.0; // lazy: same value for every surviving index below, sqrt at most once
+                
+                for &(source_anchor, source_weight) in &source.entries { // neighbor's active anchors
+                    if source_weight <= 0.0 { continue; }
+                    for &(destination_anchor, destination_weight) in &receiver.entries { // this particle's active anchors
+                        if destination_weight <= 0.0 { continue; }
+                        let index = source_anchor * anchor_count + destination_anchor; // flatten to this pair's row
+                        if distance_sq > reach_squared[index] { continue; } // squared compare skips the sqrt
+                        if distance < 0.0 { distance = distance_sq.sqrt(); }
+                        let (kernel, kernel_prime) = strength_and_slope(distance, &pairs[index].shells); // K(d) and its slope
+                        potential[index] += source_weight * kernel; // K(d), this pair's sensed density
+                        let row = &mut gradient[index * dims..(index + 1) * dims]; // this pair's gradient accumulator
+                        let scale = source_weight * kernel_prime / distance; // chain rule: dK/dx = K'(d) * d(distance)/dx
+                        for axis in 0..dims { row[axis] += scale * direction[axis]; } // scale direction into the gradient
                     }
                 }
             };
+            substrate.visit_neighbors(i_pos, &mut visit); // grid-accelerated neighbor walk
 
-            grid.for_each_candidate(position_i, count, &mut visit);
-
-            for source_anchor in 0..anchors {
-                for &(destination_anchor, destination_weight) in &receiver {
-                    if destination_weight <= 0.0 {
-                        continue;
-                    }
-                    let index = source_anchor * anchors + destination_anchor;
-                    let interaction = &pairs[index];
-                    let (_, growth_prime) =
-                        growth(potential[index] / interaction.norm, &interaction.bumps);
-                    let scale = dt * destination_weight * interaction.weight * growth_prime
-                        / interaction.norm;
-                    let row = &gradient[index * dims..(index + 1) * dims];
-                    for axis in 0..dims {
-                        out[axis] += scale * row[axis];
-                    }
+            // Turn accumulated potential into motion: G'(U/norm), each pair's pull strength at
+            // the density i's neighbors produced, scaled into this tick's step.
+            for source_anchor in 0..anchor_count { // every possible source, not just active ones
+                for &(destination_anchor, destination_weight) in &receiver.entries {
+                    if destination_weight <= 0.0 { continue; }
+                    let index = source_anchor * anchor_count + destination_anchor;
+                    let interaction = &pairs[index]; // this pair's behavior
+                    let (_, g_prime) = strength_and_slope(potential[index] / interaction.norm, &interaction.bumps); // B'(U/norm), bump mixture slope
+                    let scale = 2.0 * dt * destination_weight * interaction.weight * g_prime / interaction.norm; // 2x: G = 2B-1 maps to [-1,1], the -1 dies in G'
+                    let row = &gradient[index * dims..(index + 1) * dims]; // pair's accumulated direction
+                    for axis in 0..dims { out[axis] += scale * row[axis]; } // add to tick's pos delta
                 }
             }
         },
     );
-
-    for (coordinate, change) in sub.positions.iter_mut().zip(delta) {
-        *coordinate = (*coordinate + change).rem_euclid(extent);
-    }
-}
-
-struct Scratch {
-    potential: Vec<f32>,
-    gradient: Vec<f32>,
-    displacement: Vec<f32>,
-}
-
-impl Scratch {
-    fn new(pairs: usize, dims: usize) -> Scratch {
-        Scratch {
-            potential: vec![0.0; pairs],
-            gradient: vec![0.0; pairs * dims],
-            displacement: vec![0.0; dims],
-        }
+    // Explicit Euler step, wrapped back onto the torus.
+    for (coordinate, change) in substrate.positions.iter_mut().zip(delta) {
+        *coordinate = (*coordinate + change).rem_euclid(substrate.box_len); // advance, then wrap
     }
 }

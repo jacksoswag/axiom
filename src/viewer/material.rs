@@ -9,6 +9,7 @@ use eframe::egui::{
 
 use super::camera::Camera;
 pub use crate::render_recipe::RenderRecipe as Recipe;
+use crate::util::Fnv;
 
 const EPSILON: f32 = 1e-6;
 
@@ -285,12 +286,10 @@ impl DensityField {
                         })
                         .unwrap_or(0.0);
                     let rim = (1.0 - dot(normal, direction).abs()).powi(2);
-                    // `material^2`'s coefficient gets the same units-consistency correction as
-                    // `absorption` (see `render_recipe::BRIGHTNESS_GAIN`): it is the other place
-                    // brightness reads `material` through a term proportional to it.
-                    let emission = 0.14
-                        + crate::render_recipe::BRIGHTNESS_GAIN * 0.40 * material * material
-                        + 0.55 * activity;
+                    // The `material^2` coefficient is `absorption`'s counterpart: the other
+                    // place brightness reads `material` through a term proportional to it, so
+                    // the two move together.
+                    let emission = 0.14 + 0.7034908 * material * material + 0.55 * activity;
                     let shade = 0.16 + 0.88 * diffuse + 0.32 * rim + 0.10 * interior;
                     let opacity = if entered_surface {
                         0.40 + 0.25 * recipe.absorption
@@ -590,33 +589,35 @@ fn normalise(value: [f32; 3]) -> [f32; 3] {
 }
 
 fn snapshot_fingerprint(positions: &[f32], traits: &[f32], extent: f32) -> u64 {
-    let mut hash = 0xcbf2_9ce4_8422_2325u64;
-    mix_hash(&mut hash, extent.to_bits());
+    let mut hash = Fnv::new();
+    hash.float(extent);
     for &value in positions.iter().chain(traits) {
-        mix_hash(&mut hash, value.to_bits());
+        hash.float(value);
     }
-    hash
+    hash.finish()
 }
 
-fn field_fingerprint(mut hash: u64, recipe: &Recipe) -> u64 {
-    mix_hash(&mut hash, recipe.resolution as u32);
-    mix_hash(&mut hash, recipe.support.to_bits());
-    hash
+fn field_fingerprint(hash: u64, recipe: &Recipe) -> u64 {
+    let mut hash = Fnv::resume(hash);
+    hash.bytes((recipe.resolution as u32).to_le_bytes());
+    hash.float(recipe.support);
+    hash.finish()
 }
 
 fn image_fingerprint(
-    mut hash: u64,
+    hash: u64,
     recipe: &Recipe,
     camera: &Camera,
     width: usize,
     height: usize,
     viewport_height: f32,
 ) -> u64 {
-    mix_hash(&mut hash, recipe.iso.to_bits());
-    mix_hash(&mut hash, recipe.absorption.to_bits());
-    mix_hash(&mut hash, width as u32);
-    mix_hash(&mut hash, height as u32);
-    mix_hash(&mut hash, viewport_height.to_bits());
+    let mut hash = Fnv::resume(hash);
+    hash.float(recipe.iso);
+    hash.float(recipe.absorption);
+    hash.bytes((width as u32).to_le_bytes());
+    hash.bytes((height as u32).to_le_bytes());
+    hash.float(viewport_height);
     for value in [
         camera.target[0],
         camera.target[1],
@@ -626,9 +627,9 @@ fn image_fingerprint(
         camera.distance,
         camera.focal,
     ] {
-        mix_hash(&mut hash, value.to_bits());
+        hash.float(value);
     }
-    hash
+    hash.finish()
 }
 
 fn render_size(viewport: Rect) -> (usize, usize) {
@@ -640,80 +641,10 @@ fn render_size(viewport: Rect) -> (usize, usize) {
     }
 }
 
-fn mix_hash(hash: &mut u64, bits: u32) {
-    for byte in bits.to_le_bytes() {
-        *hash ^= byte as u64;
-        *hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// The old raw-density uniform baseline `BRIGHTNESS_GAIN` is derived from (`2.34497`) is a
-    /// property of the old fixed `support = 24.0` at this repo's default coordination and
-    /// radius, not of any one particle count -- `count / extent^3` is itself invariant at fixed
-    /// coordination (`world::Params::geometry`), so `uniform_density` should return the same
-    /// value at wildly different `count` as long as `support` and the coordination/radius that
-    /// produced `extent` are held fixed. Guards the constant `render_recipe::BRIGHTNESS_GAIN`
-    /// was derived from, not a property of today's (derived, not fixed) `support`.
-    #[test]
-    fn old_uniform_baseline_is_particle_count_invariant() {
-        const OLD_SUPPORT: f32 = 24.0;
-        let baseline_at = |count: usize| {
-            let params = crate::engine::genome::Params {
-                particles: count,
-                ..Default::default()
-            };
-            uniform_density(count, params.geometry().extent, OLD_SUPPORT)
-        };
-        let small = baseline_at(2_500);
-        let large = baseline_at(50_000);
-        assert!(
-            (small - large).abs() / small < 0.01,
-            "old uniform baseline should not depend on particle count: {small} at N=2,500 vs \
-             {large} at N=50,000"
-        );
-        assert!(
-            (small - 2.34497).abs() / 2.34497 < 0.01,
-            "measured {small}, `render_recipe::BRIGHTNESS_GAIN`'s derivation comment assumes \
-             2.34497 -- update both together if this drifts"
-        );
-    }
-
-    /// `BRIGHTNESS_GAIN`'s one exact claim (see its doc comment): deep inside real structure,
-    /// `transfer`'s interior term is clamped to a fixed floor on both sides of the density-
-    /// referencing change, so `material` converges to the same value whether density and `iso`
-    /// are in old raw units or new normalised ones, and the brightness ratio for a fixed
-    /// physical density converges to exactly `BRIGHTNESS_GAIN` -- not approximately.
-    #[test]
-    fn brightness_gain_is_exact_deep_in_structure() {
-        const OLD_ISO: f32 = 2.0;
-        const OLD_RHO_U: f32 = 2.34497;
-        const OLD_ABSORPTION: f32 = 0.40;
-        let new_absorption = crate::render_recipe::RenderRecipe::default().absorption;
-        assert!((new_absorption - OLD_ABSORPTION * crate::render_recipe::BRIGHTNESS_GAIN).abs()
-            < 1e-3);
-
-        // "Deep" here means far enough past both systems' surface peak that `transfer`'s
-        // interior clamp has fully engaged on both sides -- `m = 8` (8x the uniform baseline)
-        // clears that for both the old (peak at ratio 1, i.e. density ~2.34497) and new (peak at
-        // ratio 1, i.e. density 1.5) thresholds.
-        for m in [5.0f32, 8.0, 20.0] {
-            let (material_old, _) = transfer(m * OLD_RHO_U, OLD_ISO);
-            let (material_new, _) =
-                transfer(m, crate::render_recipe::RenderRecipe::default().iso);
-            let opacity_old = material_old * OLD_ABSORPTION;
-            let opacity_new = material_new * new_absorption;
-            assert!(
-                (opacity_new / opacity_old - crate::render_recipe::BRIGHTNESS_GAIN).abs() < 1e-3,
-                "m={m}: opacity ratio {} should equal BRIGHTNESS_GAIN {} deep in structure",
-                opacity_new / opacity_old,
-                crate::render_recipe::BRIGHTNESS_GAIN
-            );
-        }
-    }
+    use crate::tuner::density;
 
     #[test]
     fn zz_probe_determinism_check() {
@@ -722,11 +653,11 @@ mod tests {
                 particles: 1_200,
                 ..Default::default()
             };
-            let geometry = params.geometry();
+            let extent = density::bound_len_for(&params);
             let genome = params
                 .layout()
-                .default_genome(params.radius, geometry.extent);
-            let mut world = crate::engine::world::World::with_geometry(&params, &geometry, &genome);
+                .default_genome(params.radius, extent);
+            let mut world = crate::engine::world::World::with_extent(&params, extent, &genome);
             for _ in 0..1_500 {
                 world.step();
             }
@@ -736,8 +667,8 @@ mod tests {
         let b = build();
         eprintln!(
             "extent a={} b={}  positions equal={}  state_hash a={} b={}",
-            a.geometry.extent,
-            b.geometry.extent,
+            a.substrate.bound_len,
+            b.substrate.bound_len,
             a.substrate.positions == b.substrate.positions,
             a.state_hash(),
             b.state_hash()
@@ -750,21 +681,21 @@ mod tests {
             particles: 1_200,
             ..Default::default()
         };
-        let geometry = params.geometry();
+        let extent = density::bound_len_for(&params);
         let genome = params
             .layout()
-            .default_genome(params.radius, geometry.extent);
-        let mut world = crate::engine::world::World::with_geometry(&params, &geometry, &genome);
+            .default_genome(params.radius, extent);
+        let mut world = crate::engine::world::World::with_extent(&params, extent, &genome);
         for _ in 0..1_500 {
             world.step();
         }
-        let recipe = Recipe::for_world(world.geometry.extent, world.substrate.len());
+        let recipe = Recipe::for_world(world.substrate.bound_len, world.substrate.traits.len());
         let mut camera = Camera::default();
-        camera.frame_world(world.geometry.extent);
+        camera.frame_world(world.substrate.bound_len);
         let image = reference_image(
             &world.substrate.positions,
             &world.substrate.traits,
-            world.geometry.extent,
+            world.substrate.bound_len,
             &recipe,
             &camera,
             240,
@@ -780,7 +711,9 @@ mod tests {
                     .into_iter()
                     .zip([background.r(), background.g(), background.b()])
                     .map(|(fg, bg)| {
-                        ((fg as u16 * pixel.a() as u16 + bg as u16 * (255 - pixel.a() as u16) + 127)
+                        ((fg as u16 * pixel.a() as u16
+                            + bg as u16 * (255 - pixel.a() as u16)
+                            + 127)
                             / 255) as u8
                     })
                     .max()
@@ -788,11 +721,9 @@ mod tests {
             })
             .max()
             .unwrap();
-        let void = image.pixels.iter().filter(|p| p.a() < 13).count() as f32
-            / image.pixels.len() as f32;
-        eprintln!(
-            "FINAL recipe={recipe:?} peak_luminance={peak} void_fraction={void:.4}"
-        );
+        let void =
+            image.pixels.iter().filter(|p| p.a() < 13).count() as f32 / image.pixels.len() as f32;
+        eprintln!("FINAL recipe={recipe:?} peak_luminance={peak} void_fraction={void:.4}");
     }
 
     fn recipe() -> Recipe {
@@ -805,7 +736,7 @@ mod tests {
     }
 
     fn uniform_swarm(count: usize, extent: f32, seed: u64) -> (Vec<f32>, Vec<f32>) {
-        let mut rng = crate::engine::rng::Rng::new(seed);
+        let mut rng = crate::util::Rng::new(seed);
         let positions = (0..count * 3).map(|_| rng.unit() * extent).collect();
         let traits = (0..count).map(|_| rng.unit()).collect();
         (positions, traits)
@@ -831,7 +762,7 @@ mod tests {
             },
         )
         .unwrap();
-        let mut rng = crate::engine::rng::Rng::new(11);
+        let mut rng = crate::util::Rng::new(11);
         let magnitudes: Vec<f32> = (0..24)
             .map(|_| {
                 let raw = [rng.normal(), rng.normal(), rng.normal()];
@@ -848,8 +779,8 @@ mod tests {
             })
             .collect();
         let mean = magnitudes.iter().sum::<f32>() / magnitudes.len() as f32;
-        let variance = magnitudes.iter().map(|m| (m - mean).powi(2)).sum::<f32>()
-            / magnitudes.len() as f32;
+        let variance =
+            magnitudes.iter().map(|m| (m - mean).powi(2)).sum::<f32>() / magnitudes.len() as f32;
         variance.sqrt() / mean.max(EPSILON)
     }
 
@@ -904,7 +835,7 @@ mod tests {
     /// particles, ~167x apart, using `for_world`'s own derived support/resolution): 4.33% and
     /// 5.75%. The old absolute `iso = 2.0` had no such property -- at the same default
     /// coordination and radius, a uniform swarm's raw baseline density is ~2.3 regardless of N
-    /// (`count / extent^3` is invariant at fixed coordination, see `world::Params::geometry`),
+    /// (`count / extent^3` is invariant at fixed coordination, see `tuner::density::DensityProbe`),
     /// so the old threshold sat *below* the mean and read as "material" nearly everywhere: the
     /// uniform fog the task's diagnosis describes.
     #[test]
@@ -914,11 +845,10 @@ mod tests {
                 particles: count,
                 ..Default::default()
             };
-            let extent = params.geometry().extent;
+            let extent = density::bound_len_for(&params);
             let recipe = Recipe::for_world(extent, count);
             let (positions, traits) = uniform_swarm(count, extent, 7);
-            let field =
-                DensityField::from_particles(&positions, &traits, extent, &recipe).unwrap();
+            let field = DensityField::from_particles(&positions, &traits, extent, &recipe).unwrap();
             let above = field.density.iter().filter(|&&d| d >= recipe.iso).count();
             above as f32 / field.density.len() as f32
         };
@@ -934,7 +864,10 @@ mod tests {
         // being far tighter than the orders-of-magnitude swing an absolute threshold produces
         // across genuinely different world sizes.
         let ratio = large.max(small) / small.min(large);
-        assert!(ratio < 3.0, "fractions diverged: {small} at N=300 vs {large} at N=50,000");
+        assert!(
+            ratio < 3.0,
+            "fractions diverged: {small} at N=300 vs {large} at N=50,000"
+        );
     }
 
     #[test]

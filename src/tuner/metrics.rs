@@ -5,7 +5,7 @@
 //! coordinate meaning while it is running.
 
 use crate::engine::kernel::displacement;
-use crate::engine::interaction::Net;
+use crate::engine::interaction::Matrix;
 use crate::tuner::persistence::BARS;
 use crate::engine::substrate::Substrate;
 
@@ -93,7 +93,7 @@ impl Rdf {
 }
 
 fn bin_range(substrate: &Substrate, extent: f32) -> (f32, f32) {
-    let spacing = extent / (substrate.len().max(1) as f32).powf(1.0 / DIMENSIONS as f32);
+    let spacing = extent / (substrate.traits.len().max(1) as f32).powf(1.0 / DIMENSIONS as f32);
     let low = spacing.max(1e-6);
     (low, (extent * 0.5 * 3.0f32.sqrt()).max(low * 4.0))
 }
@@ -113,12 +113,12 @@ fn trait_band(a: f32, b: f32) -> usize {
 pub fn raw_rdf(substrate: &Substrate, extent: f32, softening: f32) -> Rdf {
     let (low, high) = bin_range(substrate, extent);
     let mut out = Rdf::zeros();
-    for i in 0..substrate.len() {
+    for i in 0..substrate.traits.len() {
         let a = &substrate.positions[i * DIMENSIONS..(i + 1) * DIMENSIONS];
         if !a.iter().all(|v| v.is_finite()) {
             continue;
         }
-        for j in i + 1..substrate.len() {
+        for j in i + 1..substrate.traits.len() {
             let b = &substrate.positions[j * DIMENSIONS..(j + 1) * DIMENSIONS];
             if !b.iter().all(|v| v.is_finite()) {
                 continue;
@@ -503,8 +503,8 @@ pub fn turnover(before: &SpatialField, after: &SpatialField) -> f32 {
         / (before.density.iter().sum::<f32>() + after.density.iter().sum::<f32>()).max(1.0)
 }
 
-pub fn asymmetry(net: &Net) -> f32 {
-    let anchors = net.anchors();
+pub fn asymmetry(net: &Matrix) -> f32 {
+    let anchors = net.anchors;
     let mut difference = 0.0f32;
     let mut total = 0.0f32;
     for source in 0..anchors {
@@ -579,14 +579,11 @@ pub fn descriptor(observed: &Observations) -> Vec<f32> {
 mod tests {
     use super::*;
     use crate::tuner::persistence::Barcode;
-    use crate::engine::rng::Rng;
+    use crate::util::Rng;
 
     fn uniform(count: usize, extent: f32, seed: u64) -> Substrate {
-        let mut s = Substrate::new(count, DIMENSIONS);
-        let mut rng = Rng::new(seed);
-        for p in &mut s.positions {
-            *p = rng.unit() * extent;
-        }
+        let mut s = Substrate::new(count, extent, DIMENSIONS, seed);
+        let mut rng = Rng::new(seed.wrapping_add(1));
         for t in &mut s.traits {
             *t = rng.unit();
         }
@@ -607,8 +604,8 @@ mod tests {
 
     #[test]
     fn separated_biomes_differ_from_a_uniform_blend() {
-        let mut biomes = Substrate::new(256, DIMENSIONS);
-        let mut blend = Substrate::new(256, DIMENSIONS);
+        let mut biomes = Substrate::new(256, 100.0, DIMENSIONS, 1);
+        let mut blend = Substrate::new(256, 100.0, DIMENSIONS, 1);
         for i in 0..256 {
             let side = if i < 128 { 0.2 } else { 0.8 };
             biomes.traits[i] = side;
@@ -681,7 +678,7 @@ mod tests {
 
     #[test]
     fn radial_range_reaches_the_three_dimensional_torus_corner() {
-        let substrate = Substrate::new(1_000, DIMENSIONS);
+        let substrate = Substrate::new(1_000, 100.0, DIMENSIONS, 1);
         let (_, high) = bin_range(&substrate, 100.0);
         assert!((high - 50.0 * 3.0f32.sqrt()).abs() < 1e-5, "{high}");
     }

@@ -103,7 +103,7 @@ impl Renderer {
         // box in a void. Nearest first under a budget, so a large swarm loses distant images
         // instead of tessellating millions of quads onto the CPU mesh path.
         let images = camera::torus_images();
-        let affordable = (SPRITE_BUDGET / substrate.len().max(1))
+        let affordable = (SPRITE_BUDGET / substrate.traits.len().max(1))
             .clamp(1, images.len())
             .min(image_budget);
         let cull = viewport.expand(140.0);
@@ -174,7 +174,7 @@ impl Renderer {
     /// Sparse true-particle grain for the material path. Indices are sampled deterministically,
     /// so pausing a world cannot make the overlay shimmer independently of the simulation.
     pub fn draw_beads(&self, painter: &Painter, scene: &Scene) {
-        let stride = (scene.substrate.len() / 700).max(1);
+        let stride = (scene.substrate.traits.len() / 700).max(1);
         painter.add(Shape::Mesh(Arc::new(
             self.mesh(scene, 0.72, 0.72, stride, 1),
         )));

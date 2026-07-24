@@ -8,12 +8,12 @@ use crate::tuner::metrics::{
 };
 use crate::tuner::novelty::distance;
 use crate::tuner::persistence::{h0, Barcode, BARS};
-use crate::engine::rng::Rng;
+use crate::util::Rng;
 use crate::tuner::tuning::{Repair, Tuning};
 use crate::tuner::viability::{margins, viable, world_qualified, GateMargins, Rejection, WorldRejection};
 use crate::engine::world::World;
 use crate::engine::genome::Params;
-use crate::engine::geometry::{Geometry, GeometryScale};
+use crate::tuner::density::{self, DensityProbe};
 
 /// A genome pairing a large weight with a small dt blows explicit Euler up to NaN, which ends
 /// the rollout. The check lives here rather than on `Substrate`, which holds no runtime logic.
@@ -27,7 +27,7 @@ pub const SAMPLES: usize = 8;
 
 struct RepairProtocol<'a> {
     params: &'a Params,
-    geometry: &'a Geometry,
+    extent: f32,
     genome: &'a [f32],
     baseline: &'a Rdf,
     config: Repair,
@@ -182,42 +182,42 @@ impl TierEvaluation {
 /// scale, avoiding the density probe per genome.
 fn resolve_clamped(
     tuning: &Tuning,
-    scale: GeometryScale,
+    scale: DensityProbe,
     genome: &[f32],
-) -> (Params, Geometry, Vec<f32>) {
+) -> (Params, f32, Vec<f32>) {
     let (params, interactions) = tuning.world.resolve(genome);
-    let geometry = params.geometry_with(scale);
+    let extent = scale.bound_len(params.coordination);
     let mut genes = interactions.to_vec();
     params
         .layout()
-        .clamp(&mut genes, params.radius, geometry.extent);
-    (params, geometry, genes)
+        .clamp(&mut genes, params.radius, extent);
+    (params, extent, genes)
 }
 
 /// Campaign path: one discovery rollout of a genome.
 pub fn from_genome_with_scale(
     tuning: &Tuning,
-    scale: GeometryScale,
+    scale: DensityProbe,
     genome: &[f32],
     steps: usize,
 ) -> Metrics {
-    let (params, geometry, genes) = resolve_clamped(tuning, scale, genome);
-    rollout(tuning, &params, &geometry, &genes, steps)
+    let (params, extent, genes) = resolve_clamped(tuning, scale, genome);
+    rollout(tuning, &params, extent, &genes, steps)
 }
 
 /// Campaign path: all candidates use one measured density reference.
 pub fn evaluate_tier_with_scale(
     tuning: &Tuning,
-    scale: GeometryScale,
+    scale: DensityProbe,
     genome: &[f32],
     budget: EvaluationBudget,
 ) -> TierEvaluation {
-    let (template, geometry, genes) = resolve_clamped(tuning, scale, genome);
+    let (template, extent, genes) = resolve_clamped(tuning, scale, genome);
     let records = (0..budget.seeds())
         .map(|offset| {
             let mut params = template.clone();
             params.seed = tier_seed(template.seed, budget.tier, offset);
-            let outcome = rollout_status(tuning, &params, &geometry, &genes, budget.steps);
+            let outcome = rollout_status(tuning, &params, extent, &genes, budget.steps);
             let metrics = outcome.metrics;
             let gate_margins = margins(&metrics, &tuning.gates);
             let base = viable(&metrics, &tuning.gates);
@@ -251,11 +251,11 @@ pub fn evaluate_tier_with_scale(
 pub fn rollout(
     tuning: &Tuning,
     params: &Params,
-    geometry: &Geometry,
+    extent: f32,
     genome: &[f32],
     steps: usize,
 ) -> Metrics {
-    rollout_status(tuning, params, geometry, genome, steps).metrics
+    rollout_status(tuning, params, extent, genome, steps).metrics
 }
 
 fn tier_seed(base: u64, tier: EvaluationTier, offset: usize) -> u64 {
@@ -270,16 +270,13 @@ fn tier_seed(base: u64, tier: EvaluationTier, offset: usize) -> u64 {
 fn rollout_status(
     tuning: &Tuning,
     params: &Params,
-    geometry: &Geometry,
+    extent: f32,
     genome: &[f32],
     steps: usize,
 ) -> RolloutOutcome {
-    let mut world = World::with_geometry(params, geometry, genome);
-    let (extent, softening, cutoff) = (
-        world.geometry.extent,
-        world.geometry.softening,
-        world.net.max_reach(),
-    );
+    let mut world = World::with_extent(params, extent, genome);
+    let softening = world.substrate.softening;
+    let cutoff = world.net.max_reach();
     let baseline = raw_rdf(&world.substrate, extent, softening);
     let interval = (steps / (2 * SAMPLES)).max(1);
     let first_sample = steps.saturating_sub(interval * SAMPLES);
@@ -361,7 +358,7 @@ fn rollout_status(
         for (total, value) in void.iter_mut().zip(c.void) {
             *total += value;
         }
-        grid.rebuild(&world.substrate.positions, world.substrate.dims(), extent, cutoff);
+        grid.rebuild(&world.substrate.positions, world.substrate.dimensions, extent, cutoff);
         let barcode = h0(&world.substrate, extent, cutoff, &grid);
         for (total, value) in barcode_bins.iter_mut().zip(barcode.bins) {
             *total += value;
@@ -411,7 +408,7 @@ fn rollout_status(
         &world,
         &RepairProtocol {
             params,
-            geometry,
+            extent,
             genome,
             baseline: &baseline,
             config: tuning.repair,
@@ -457,13 +454,13 @@ fn rollout_status(
 }
 
 fn self_maintenance(world: &World, protocol: &RepairProtocol<'_>) -> f32 {
-    let extent = world.geometry.extent;
+    let extent = world.substrate.bound_len;
     let positions = world.substrate.positions.clone();
     let traits = world.substrate.traits.clone();
     let initial_control = recovery_signature(world, protocol.baseline);
     let mut control = World::from_snapshot(
         protocol.params,
-        protocol.geometry,
+        protocol.extent,
         protocol.genome,
         positions.clone(),
         traits.clone(),
@@ -480,7 +477,7 @@ fn self_maintenance(world: &World, protocol: &RepairProtocol<'_>) -> f32 {
     for probe in 0..protocol.config.probes {
         let mut damaged = World::from_snapshot(
             protocol.params,
-            protocol.geometry,
+            protocol.extent,
             protocol.genome,
             positions.clone(),
             traits.clone(),
@@ -492,11 +489,11 @@ fn self_maintenance(world: &World, protocol: &RepairProtocol<'_>) -> f32 {
                 .wrapping_mul(0x9E37_79B9)
                 .wrapping_add(probe as u64 + 1),
         );
-        if damaged.substrate.is_empty() {
+        if damaged.substrate.traits.is_empty() {
             continue;
         }
-        let dims = damaged.substrate.dims();
-        let centre_index = rng.below(damaged.substrate.len());
+        let dims = damaged.substrate.dimensions;
+        let centre_index = rng.below(damaged.substrate.traits.len());
         let centre = damaged.substrate.at(centre_index).to_vec();
         for position in damaged.substrate.positions.chunks_exact_mut(dims) {
             let distance = crate::engine::kernel::displacement(position, &centre, extent, 1.0 / extent, 0.0);
@@ -530,9 +527,9 @@ fn self_maintenance(world: &World, protocol: &RepairProtocol<'_>) -> f32 {
 }
 
 fn recovery_signature(world: &World, baseline: &Rdf) -> Vec<f32> {
-    let rdf = raw_rdf(&world.substrate, world.geometry.extent, world.geometry.softening);
-    let local = heterogeneity(&world.substrate, world.geometry.extent);
-    let connected = connectivity(&world.substrate, world.geometry.extent);
+    let rdf = raw_rdf(&world.substrate, world.substrate.bound_len, world.substrate.softening);
+    let local = heterogeneity(&world.substrate, world.substrate.bound_len);
+    let connected = connectivity(&world.substrate, world.substrate.bound_len);
     scaled_spatial_features(&rdf, baseline, local, connected)
 }
 
@@ -562,13 +559,13 @@ mod tests {
     #[test]
     fn rollout_is_deterministic_and_v5_sized() {
         let params = small_params();
-        let geometry = params.geometry();
+        let extent = density::bound_len_for(&params);
         let genome = params
             .layout()
-            .default_genome(params.radius, geometry.extent);
+            .default_genome(params.radius, extent);
         let tuning = small_tuning(params.particles);
-        let a = rollout(&tuning, &params, &geometry, &genome, 120);
-        let b = rollout(&tuning, &params, &geometry, &genome, 120);
+        let a = rollout(&tuning, &params, extent, &genome, 120);
+        let b = rollout(&tuning, &params, extent, &genome, 120);
         assert_eq!(a.descriptor, b.descriptor);
         assert_eq!(a.descriptor.len(), descriptor_len());
         assert!(a.descriptor.iter().all(|v| v.is_finite()));
@@ -578,10 +575,11 @@ mod tests {
     fn tier_records_every_small_test_seed() {
         let tuning = small_tuning(80);
         let caps = &tuning.world;
-        let scale = caps.geometry_scale();
+        let scale = density::probe_for(caps);
+        let extent = scale.bound_len(crate::engine::genome::COORDINATION_BOUNDS.1);
         let budget = EvaluationBudget::new(EvaluationTier::Persistence, 80);
         let report =
-            evaluate_tier_with_scale(&tuning, scale, &caps.default_genome(scale), budget);
+            evaluate_tier_with_scale(&tuning, scale, &caps.default_genome(extent), budget);
         assert_eq!(report.records.len(), 3);
         assert!(report
             .records
@@ -610,19 +608,19 @@ mod tests {
     #[test]
     fn ineffective_damage_never_counts_as_repair() {
         let params = small_params();
-        let geometry = params.geometry();
+        let extent = density::bound_len_for(&params);
         let genome = params
             .layout()
-            .default_genome(params.radius, geometry.extent);
-        let world = World::with_geometry(&params, &geometry, &genome);
-        let baseline = raw_rdf(&world.substrate, world.geometry.extent, world.geometry.softening);
+            .default_genome(params.radius, extent);
+        let world = World::with_extent(&params, extent, &genome);
+        let baseline = raw_rdf(&world.substrate, world.substrate.bound_len, world.substrate.softening);
         assert_eq!(
             self_maintenance(
                 &world,
                 &RepairProtocol {
                     config: Repair::default(),
                     params: &params,
-                    geometry: &geometry,
+                    extent,
                     genome: &genome,
                     baseline: &baseline,
                     steps: 1,

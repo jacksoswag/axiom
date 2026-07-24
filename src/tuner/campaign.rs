@@ -4,8 +4,14 @@
 //! evidence needed to learn where to spend later rollouts; it never changes archive
 //! admission, viability, or the definition of a certified preset.
 
+use crate::engine::genome::Caps;
+use crate::engine::world::World;
+use crate::tuner::density::{self, DensityProbe};
 use crate::tuner::archive::{Archive, EvaluationRecord, ParentSource, SourceTier};
-use crate::tuner::checkpoint::{save_world, snapshot_world, SnapshotMetadata, WorldManifest, WorldState};
+use crate::tuner::checkpoint::{
+    save_world, snapshot_world, SnapshotMetadata, WorldManifest, WorldState,
+};
+use crate::tuner::learning::ContinuationQuotas;
 use crate::tuner::learning::{
     fit_persistence, lineage_split, select_continuations, ContinuationCandidate, FeatureRow,
     FeatureSchema, PersistenceEnsemble,
@@ -17,20 +23,17 @@ use crate::tuner::rollout::{
     WindowRecord,
 };
 use crate::tuner::search::{run_with_promotions, PromotionRecord, Report, SearchResult};
-use crate::tuner::learning::ContinuationQuotas;
 use crate::tuner::tuning::{Gates, Learning, Tuning};
 use crate::tuner::viability::{margins, GateMargins, Rejection, WorldRejection};
-use crate::engine::world::World;
-use crate::engine::genome::Caps;
-use crate::engine::geometry::GeometryScale;
+use crate::util::Fnv;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
-pub use crate::tuner::checkpoint::{GENOME_LAYOUT_VERSION, SIMULATOR_VERSION};
 pub use crate::render_recipe::VERSION as RENDER_RECIPE_VERSION;
+pub use crate::tuner::checkpoint::{GENOME_LAYOUT_VERSION, SIMULATOR_VERSION};
 
 pub const FEATURE_SCHEMA_VERSION: u32 = 1;
 
@@ -543,7 +546,7 @@ pub fn run(
     };
     let search_result = run_with_promotions(tuning, &mut callback);
     let mut candidates = Vec::new();
-    let scale = tuning.world.geometry_scale();
+    let scale = density::probe_for(&tuning.world);
 
     for record in search_result.ledger.records() {
         state
@@ -765,15 +768,15 @@ fn passing_persistence_candidates(ledger: &CampaignLedger) -> Vec<CampaignCandid
 
 fn certified_preset(
     caps: &Caps,
-    scale: GeometryScale,
+    scale: DensityProbe,
     candidate: &CampaignCandidate,
     budget: EvaluationBudget,
     passing_seed: u64,
 ) -> Result<CertifiedPreset, crate::tuner::checkpoint::Error> {
     let (mut params, interactions) = caps.resolve(&candidate.genome);
     params.seed = passing_seed;
-    let geometry = params.geometry_with(scale);
-    let mut world = World::with_geometry(&params, &geometry, interactions);
+    let extent = scale.bound_len(params.coordination);
+    let mut world = World::with_extent(&params, extent, interactions);
     for _ in 0..budget.steps {
         world.step();
     }
@@ -782,7 +785,7 @@ fn certified_preset(
     let mut checkpoint_caps = caps.clone();
     checkpoint_caps.seed = passing_seed;
     let mut render_recipe = crate::render_recipe::RenderRecipe::default();
-    render_recipe.support = render_recipe.support.min(geometry.extent * 0.25);
+    render_recipe.support = render_recipe.support.min(extent * 0.25);
     let (manifest, state) = snapshot_world(
         SnapshotMetadata {
             world_id: world_id.clone(),
@@ -925,9 +928,9 @@ fn put_f32s(out: &mut Vec<u8>, values: &[f32]) {
 }
 
 fn campaign_checksum(bytes: &[u8]) -> u64 {
-    bytes.iter().fold(0xcbf2_9ce4_8422_2325, |hash, byte| {
-        (hash ^ *byte as u64).wrapping_mul(0x0000_0100_0000_01b3)
-    })
+    let mut hash = Fnv::new();
+    hash.bytes(bytes.iter().copied());
+    hash.finish()
 }
 
 fn write_atomic(path: &Path, bytes: &[u8]) -> io::Result<()> {
@@ -1349,9 +1352,9 @@ fn evaluation_tier(source: SourceTier) -> EvaluationTier {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tuner::tuning::{Discovery, Tiers};
     use crate::tuner::metrics::{Connectivity, Metrics};
     use crate::tuner::rollout::{EvaluationBudget, SeedRecord};
+    use crate::tuner::tuning::{Discovery, Tiers};
     use crate::tuner::viability::{margins, viable};
 
     fn metrics(value: f32) -> Metrics {
@@ -1392,7 +1395,12 @@ mod tests {
             lineage_id: id,
             source: ParentSource::Random,
             descriptor: vec![id as f32; descriptor_len()],
-            features: feature_values(&metrics(id as f32), margins(&metrics(id as f32), &Gates::default()), &[], None),
+            features: feature_values(
+                &metrics(id as f32),
+                margins(&metrics(id as f32), &Gates::default()),
+                &[],
+                None,
+            ),
         }
     }
 
@@ -1716,7 +1724,7 @@ mod tests {
             bumps: 1,
             ..Caps::default()
         };
-        let genome = caps.default_genome(caps.geometry_scale());
+        let genome = caps.default_genome(density::widest_bound_len(&caps));
         let candidate = CampaignCandidate {
             genome_hash: crate::tuner::archive::genome_hash(&genome),
             lineage_id: 1,
@@ -1727,7 +1735,7 @@ mod tests {
         };
         let preset = certified_preset(
             &caps,
-            caps.geometry_scale(),
+            density::probe_for(&caps),
             &candidate,
             EvaluationBudget::new(EvaluationTier::Certification, 1),
             9,

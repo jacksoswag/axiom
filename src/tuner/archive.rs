@@ -4,8 +4,9 @@ use crate::tuner::metrics::{
     descriptor_len, Connectivity, Metrics, HETEROGENEITY_SIDES, HETEROGENEITY_VALUES, LAGS,
 };
 use crate::tuner::novelty::{crowding, novelty, NEIGHBOURS};
-use crate::tuner::viability::viable;
 use crate::tuner::tuning::{self, Tuning};
+use crate::tuner::viability::viable;
+use crate::util::Fnv;
 use std::fmt::Write as _;
 
 const FORMAT_TAG: &str = "axiom-archive";
@@ -301,7 +302,8 @@ impl Archive {
             ));
         }
         let metrics_tail = HETEROGENEITY_SIDES.len() * HETEROGENEITY_VALUES + 4;
-        let expected_values = 14 + LAGS.len() + metrics_tail + descriptor_len() + tuning.world.genome_len();
+        let expected_values =
+            14 + LAGS.len() + metrics_tail + descriptor_len() + tuning.world.genome_len();
         let mut entries = Vec::with_capacity(count);
         for number in 0..count {
             let line = lines
@@ -440,14 +442,11 @@ fn entry_order(left: &Entry, right: &Entry) -> std::cmp::Ordering {
 }
 
 pub fn genome_hash(genome: &[f32]) -> u64 {
-    let mut hash = 0xcbf2_9ce4_8422_2325u64;
+    let mut hash = Fnv::new();
     for value in genome {
-        for byte in value.to_bits().to_le_bytes() {
-            hash ^= u64::from(byte);
-            hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
-        }
+        hash.float(*value);
     }
-    hash
+    hash.finish()
 }
 
 fn expect_line<'a>(
@@ -580,9 +579,9 @@ mod tests {
         let caps = tuning.world.clone();
         let mut archive = Archive::new(tuning);
         let mut first = admission(7, 0.0);
-        first.genome = caps.default_genome(caps.geometry_scale());
+        first.genome = caps.default_genome(crate::tuner::density::widest_bound_len(&caps));
         let mut second = admission(9, 3.0);
-        second.genome = caps.default_genome(caps.geometry_scale());
+        second.genome = caps.default_genome(crate::tuner::density::widest_bound_len(&caps));
         second.genome[0] = 10.0;
         archive.merge([first, second]);
         let text = archive.to_text();

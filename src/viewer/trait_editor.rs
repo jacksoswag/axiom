@@ -258,7 +258,7 @@ mod tests {
             ..Default::default()
         };
         let layout = params.layout();
-        let extent = params.geometry().extent;
+        let extent = crate::tuner::density::bound_len_for(&params);
         let genome = layout.default_genome(params.radius, extent);
         let base = layout.index(2, 1) * layout.genes_per_interaction();
         assert_eq!(

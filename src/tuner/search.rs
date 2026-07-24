@@ -6,11 +6,11 @@ use crate::tuner::archive::{
 };
 use crate::tuner::metrics::Metrics;
 use crate::tuner::novelty::{distance, neighborhood_key, novelty, NEIGHBOURS};
-use crate::engine::rng::Rng;
+use crate::util::Rng;
 use crate::tuner::rollout::from_genome_with_scale;
 use crate::tuner::viability::{viable, Rejection};
-use crate::engine::genome::random_genome;
-use crate::engine::geometry::GeometryScale;
+use crate::engine::genome::{random_genome, COORDINATION_BOUNDS};
+use crate::tuner::density::{self, DensityProbe};
 use crate::tuner::tuning::{LaneCounts, Mutation, Tuning};
 use rayon::prelude::*;
 use std::collections::BTreeSet;
@@ -190,13 +190,14 @@ pub fn run_with_promotions(
     tuning: &Tuning,
     on_generation: &mut impl FnMut(usize, &Archive, &Report, &PromotionQueue),
 ) -> SearchResult {
-    let geometry_scale = tuning.world.geometry_scale();
-    let bounds = tuning.world.bounds(geometry_scale);
+    let geometry_scale = density::probe_for(&tuning.world);
+    let widest_extent = geometry_scale.bound_len(COORDINATION_BOUNDS.1);
+    let bounds = tuning.world.bounds(widest_extent);
     let mut rng = Rng::new(tuning.discovery.seed);
     let mut archive = Archive::new(tuning.clone());
     let mut promotions = PromotionQueue::default();
     let mut ledger = EvaluationLedger::default();
-    let bootstrap: Vec<Candidate> = std::iter::once(tuning.world.default_genome(geometry_scale))
+    let bootstrap: Vec<Candidate> = std::iter::once(tuning.world.default_genome(widest_extent))
         .chain((0..tuning.discovery.initial).map(|_| random_genome(&bounds, &mut rng)))
         .map(|genome| {
             let lineage_id = founder_lineage_id(&genome);
@@ -418,7 +419,7 @@ fn goal_parent<'a>(entries: &'a [Entry], rng: &mut Rng) -> &'a Entry {
 
 fn evaluate(
     tuning: &Tuning,
-    geometry_scale: GeometryScale,
+    geometry_scale: DensityProbe,
     candidates: Vec<Candidate>,
 ) -> Vec<(Candidate, Metrics)> {
     candidates
@@ -583,7 +584,7 @@ mod tests {
         let (batch, fallback) = offspring(
             &tuning,
             &Archive::new(Tuning::default()),
-            &tuning.world.bounds(tuning.world.geometry_scale()),
+            &tuning.world.bounds(density::widest_bound_len(&tuning.world)),
             &mut rng,
             1,
             false,
@@ -609,7 +610,7 @@ mod tests {
         let tuning = tuned(10);
         let mut archive = Archive::new(Tuning::default());
         archive.merge([11u64, 22].map(|lineage_id| Admission {
-            genome: tuning.world.default_genome(tuning.world.geometry_scale()),
+            genome: tuning.world.default_genome(density::widest_bound_len(&tuning.world)),
             metrics: viable_metrics(lineage_id as f32 / 100.0),
             lineage_id,
             parent_lineage_id: None,
@@ -619,7 +620,7 @@ mod tests {
         }));
         let mut rng = Rng::new(17);
         let (batch, fallback) =
-            offspring(&tuning, &archive, &tuning.world.bounds(tuning.world.geometry_scale()), &mut rng, 1, false);
+            offspring(&tuning, &archive, &tuning.world.bounds(density::widest_bound_len(&tuning.world)), &mut rng, 1, false);
         assert_eq!(fallback, 0);
         let inherited = batch
             .iter()

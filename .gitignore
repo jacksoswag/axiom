@@ -1,6 +1,8 @@
 /.cache
-/archive.txt
-/campaign.state
-/presets/
-/axiom-snapshot.ppm
-/target
+/.cargo
+/.docs
+CLAUDE.md
+
+.env
+.env.*
+!.env.example

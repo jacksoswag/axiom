@@ -4,15 +4,16 @@
 //! that rule's history. Render fields, meshes, textures, and spatial indexes are intentionally
 //! absent: they are deterministic caches rebuilt after restore.
 
+use crate::util::Fnv;
 use std::fmt;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 
-use crate::render_recipe::RenderRecipe;
-use crate::engine::world::World;
 use crate::engine::genome::Caps;
-use crate::engine::geometry::Geometry;
+use crate::engine::world::World;
+use crate::render_recipe::RenderRecipe;
+use crate::tuner::density;
 
 pub const SIMULATOR_VERSION: u32 = 2;
 pub const GENOME_LAYOUT_VERSION: u32 = 2;
@@ -572,8 +573,8 @@ pub fn snapshot_world(
         });
     }
     let (params, interaction_genome) = caps.resolve(&full_genome);
-    let expected_geometry = params.geometry();
-    if !world.matches_recipe(&params, &expected_geometry, interaction_genome) {
+    let expected_extent = density::bound_len_for(&params);
+    if !world.matches_recipe(&params, expected_extent, interaction_genome) {
         return Err(Error::ManifestStateMismatch {
             field: "world recipe",
         });
@@ -588,18 +589,18 @@ pub fn snapshot_world(
         seed: params.seed,
         tick: world.tick,
         dimensions: params.dimensions,
-        particle_count: world.substrate.len(),
+        particle_count: world.substrate.traits.len(),
         coordination: params.coordination,
         radius: params.radius,
         rate: params.rate,
         dt: world.dt,
-        extent: world.geometry.extent,
-        softening: world.geometry.softening,
+        extent: world.substrate.bound_len,
+        softening: world.substrate.softening,
         anchors: params.anchors,
         shells: params.shells,
         bumps: params.bumps,
         trait_logits: params.trait_logits,
-        interaction_norms: world.net.norms().collect(),
+        interaction_norms: world.net.pairs.iter().map(|interaction| interaction.norm).collect(),
         genome: full_genome,
         latest_checkpoint_id: metadata.checkpoint_id.clone(),
     };
@@ -647,20 +648,21 @@ pub fn restore_world(manifest: &WorldManifest, state: &WorldState) -> Result<Wor
             field: "resolved parameters",
         });
     }
-    let geometry = Geometry {
-        extent: manifest.extent,
-        softening: manifest.softening,
-    };
     let mut world = World::from_snapshot(
         &params,
-        &geometry,
+        manifest.extent,
         interaction_genome,
         state.positions.clone(),
         state.traits.clone(),
         state.tick,
     );
     world.dt = manifest.dt;
-    world.net.set_norms(&manifest.interaction_norms);
+    // Saved norms are untrusted deserialized data, validated here at the boundary they cross.
+    assert_eq!(manifest.interaction_norms.len(), world.net.pairs.len());
+    for (interaction, &norm) in world.net.pairs.iter_mut().zip(&manifest.interaction_norms) {
+        assert!(norm.is_finite() && norm > 0.0);
+        interaction.norm = norm;
+    }
     Ok(world)
 }
 
@@ -933,12 +935,9 @@ impl<'a> Reader<'a> {
 }
 
 fn checksum(bytes: &[u8]) -> u64 {
-    let mut hash = 0xcbf2_9ce4_8422_2325u64;
-    for &byte in bytes {
-        hash ^= byte as u64;
-        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
-    }
-    hash
+    let mut hash = Fnv::new();
+    hash.bytes(bytes.iter().copied());
+    hash.finish()
 }
 
 #[cfg(test)]
@@ -1179,10 +1178,10 @@ mod tests {
             shells: 1,
             bumps: 1,
         };
-        let genome = caps.default_genome(caps.geometry_scale());
+        let genome = caps.default_genome(density::widest_bound_len(&caps));
         let (params, interactions) = caps.resolve(&genome);
-        let geometry = params.geometry();
-        let mut original = World::with_geometry(&params, &geometry, interactions);
+        let extent = density::bound_len_for(&params);
+        let mut original = World::with_extent(&params, extent, interactions);
         for _ in 0..12 {
             original.step();
         }
@@ -1196,7 +1195,7 @@ mod tests {
                 genome_layout_version: GENOME_LAYOUT_VERSION,
                 render_recipe_version: crate::render_recipe::VERSION,
                 render_recipe: RenderRecipe {
-                    support: geometry.extent * 0.1,
+                    support: extent * 0.1,
                     ..RenderRecipe::default()
                 },
             },
@@ -1242,10 +1241,10 @@ mod tests {
             bumps: 1,
             ..Default::default()
         };
-        let genome = caps.default_genome(caps.geometry_scale());
+        let genome = caps.default_genome(density::widest_bound_len(&caps));
         let (params, interactions) = caps.resolve(&genome);
-        let geometry = params.geometry();
-        let world = World::with_geometry(&params, &geometry, interactions);
+        let extent = density::bound_len_for(&params);
+        let world = World::with_extent(&params, extent, interactions);
         let mut stale = genome.clone();
         let last = stale.len() - 1;
         stale[last] = (stale[last] + 1.0).min(100.0);
@@ -1260,7 +1259,7 @@ mod tests {
                     genome_layout_version: GENOME_LAYOUT_VERSION,
                     render_recipe_version: crate::render_recipe::VERSION,
                     render_recipe: RenderRecipe {
-                        support: geometry.extent * 0.1,
+                        support: extent * 0.1,
                         ..RenderRecipe::default()
                     },
                 },
