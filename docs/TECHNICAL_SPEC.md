@@ -365,6 +365,7 @@ The reference density backend runs on the CPU at modest resolution and defines f
 | `engine/lenia.rs` | The continuous-trait force step. |
 | `engine/sim.rs` | Authoritative run state, reconstructible from `Params` alone. |
 | `util.rs` | Deterministic xorshift stream and the crate's one hash. |
+| `tuner/genome.rs` | `Caps` and the genome codec: bounds, random and default genomes, decode to `Params`. |
 | `tuner/tuning.rs` | `Tuning` and the knob registry. |
 | `tuner/metrics.rs` | Versioned 53-value descriptor and window statistics. |
 | `tuner/persistence.rs` | H0 barcode computation. |
@@ -374,7 +375,9 @@ The reference density backend runs on the CPU at modest resolution and defines f
 | `tuner/search.rs` | Generation transaction, search lanes, lineage, promotion queues. |
 | `tuner/learning.rs` | Persistence ensemble and grouped evaluation reports. |
 | `tuner/archive.rs` | Versioned discovery archive and per-evaluation records. |
-| `tuner/campaign.rs` | The entry point, promotion tiers, ledger, scheduling, certification. |
+| `tuner/ledger.rs` | Experiment identity, campaign records, the feature schema. |
+| `tuner/state.rs` | Durable campaign state: binary format, checksums, atomic writes. |
+| `tuner/campaign.rs` | The entry point: promotion tiers, scheduling, certification. |
 | `tuner/checkpoint.rs` | Atomic world manifests and checkpoints. |
 | `render_recipe.rs` | Versioned causal-material settings. |
 | `viewer/material.rs` | Reference periodic density field and causal material renderer. |

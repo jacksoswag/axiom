@@ -8,9 +8,9 @@
 //! [`Archive::header`], which stops at the first entry; the full parse happens when a run is
 //! actually selected.
 //!
-//! **Novelty is not offered as a ranking key.** It is the quantity the search optimises, so
+//! **Novelty is not offered as a ranking key.** It is the quantity the search optimizes, so
 //! ordering results by it ranks them by how hard they were looked for rather than by what they
-//! are. The three keys here are ones nothing optimises toward. Novelty is still shown on every
+//! are. The three keys here are ones nothing optimizes toward. Novelty is still shown on every
 //! card, because how isolated a result was when found is worth knowing; it just does not get
 //! to decide the order.
 

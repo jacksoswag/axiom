@@ -93,7 +93,7 @@ impl Renderer {
         let mut shifted = [0.0f32; DIMENSIONS];
         let uv = Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0));
 
-        // Draw the neighbouring torus images so the world reads as endless rather than as a
+        // Draw the neighboring torus images so the world reads as endless rather than as a
         // box in a void. Nearest first under a budget, so a large swarm loses distant images
         // instead of tessellating millions of quads onto the CPU mesh path.
         let images = camera::torus_images();
@@ -188,9 +188,9 @@ impl Renderer {
     }
 
     /// Wireframe of the periodic box, so orientation survives flying outside it.
-    fn frame(&self, painter: &Painter, camera: &Camera, extent: f32, viewport: Rect) {
+    fn frame(&self, painter: &Painter, camera: &Camera, box_len: f32, viewport: Rect) {
         let stroke = Stroke::new(1.0, Color32::from_white_alpha(0x16));
-        let half = extent * 0.5;
+        let half = box_len * 0.5;
 
         let corner = |i: usize| -> [f32; 3] {
             [
@@ -202,7 +202,7 @@ impl Renderer {
         let projected: Vec<Option<Pos2>> = (0..8)
             .map(|i| {
                 camera
-                    .project_point(corner(i), extent, viewport)
+                    .project_point(corner(i), box_len, viewport)
                     .map(|p| p.screen)
             })
             .collect();
