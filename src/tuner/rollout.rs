@@ -4,7 +4,6 @@ use crate::engine::kernel::distance_sq;
 use crate::engine::params::Params;
 use crate::engine::sim::Sim;
 use crate::engine::substrate::Substrate;
-use crate::tuner::genome::clamp;
 use crate::tuner::metrics::{asymmetry, connectivity, descriptor, heterogeneity, mobility, normalized_rdf,
     raw_rdf, scaled_spatial_features, spatial_field, structure, temporal, turnover, Connectivity, Metrics,
     Observations, Rdf, SpatialField, HETEROGENEITY_SIDES, HETEROGENEITY_VALUES};
@@ -106,23 +105,14 @@ impl TierEvaluation {
     pub fn passed(&self) -> bool { self.passes >= self.budget.required_passes() }
 }
 
-/// Resolve a full genome against the tuned world, then re-clamp its pair genes at its own
-/// resolved box, so any genome (archived, curated, hand-fed) is safe to simulate.
-fn resolve_clamped(tuning: &Tuning, probe: &Probe, genome: &[f32]) -> Params {
-    let mut params = tuning.world.params(genome, probe);
-    let bounds = tuning.world.pair_bounds(params.box_len);
-    clamp(&mut params.interactions, &bounds);
-    params
-}
-
 /// Campaign path: one discovery rollout of a genome.
 pub fn discovery_metrics(tuning: &Tuning, probe: &Probe, genome: &[f32], steps: usize) -> Metrics {
-    rollout(tuning, &resolve_clamped(tuning, probe, genome), steps)
+    rollout(tuning, &tuning.world.params(genome, probe), steps)
 }
 
 /// Campaign path: all candidates share one measured density reference.
 pub fn evaluate_tier(tuning: &Tuning, probe: &Probe, genome: &[f32], budget: EvaluationBudget) -> TierEvaluation {
-    let template = resolve_clamped(tuning, probe, genome);
+    let template = tuning.world.params(genome, probe);
     let records = (0..budget.seeds()).map(|offset| {
         let mut params = template.clone();
         params.seed = tier_seed(template.seed, budget.tier, offset);

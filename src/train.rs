@@ -4,7 +4,8 @@
 //! `key=value` generically and never names one. Only output paths are handled here, because
 //! they say where results go rather than what a run does.
 
-use axiom::tuner::campaign::{run, validate, CampaignPersistence, CampaignState};
+use axiom::tuner::campaign::{run, validate, CampaignPersistence};
+use axiom::tuner::state::CampaignState;
 use axiom::tuner::tuning::{self, Tuning};
 use axiom::tuner::viability::Rejection;
 use std::process::ExitCode;
@@ -88,9 +89,9 @@ fn main() -> ExitCode {
 
     println!(
         "3-D, {} particles, {} anchors, {} genes, {} discovery rollouts of {} steps",
-        tuning.world.particles,
-        tuning.world.anchors,
-        tuning.world.genome_len(),
+        tuning.world.particle_count,
+        tuning.world.anchor_count,
+        tuning.world.gene_len(),
         tuning.discovery.initial + 1 + tuning.discovery.generations * tuning.discovery.batch,
         tuning.discovery.steps
     );
@@ -156,7 +157,7 @@ fn check(tuning: &Tuning) -> Result<(), String> {
         ("generations", tuning.discovery.generations),
         ("batch", tuning.discovery.batch),
         ("capacity", tuning.discovery.capacity),
-        ("particles", tuning.world.particles),
+        ("particles", tuning.world.particle_count),
         ("shells", tuning.world.shells),
         ("bumps", tuning.world.bumps),
         ("repair_probes", tuning.repair.probes),
@@ -165,7 +166,7 @@ fn check(tuning: &Tuning) -> Result<(), String> {
             return Err(format!("{name} must be at least 1"));
         }
     }
-    if tuning.world.anchors < 2 {
+    if tuning.world.anchor_count < 2 {
         return Err("anchors must be at least 2".into());
     }
     for (name, value) in [

@@ -25,7 +25,7 @@ fn main() {
     let Some(entry) = entries.get(rank) else {
         return eprintln!("archive has {} entries", entries.len());
     };
-    let (params, interactions) = tuning.world.resolve(&entry.genome);
+    let params = tuning.world.params(&entry.genome, &tuning.world.probe());
     println!("entry {rank} of {}", entries.len());
     println!(
         "lineage {} parent {:?} born generation {} via {:?}",
@@ -37,7 +37,7 @@ fn main() {
     );
     println!(
         "3-D particles {} coordination {:.3} anchors {} trait logits {:?}",
-        params.particles, params.coordination, params.anchors, params.trait_logits
+        params.particle_count, params.coordination, params.anchor_count, params.trait_distribution
     );
     println!(
         "structure {:.4} mobility {:.5} turnover {:.4} robustness {:.2}",
@@ -52,5 +52,5 @@ fn main() {
         entry.metrics.connectivity.dense,
         entry.metrics.connectivity.void
     );
-    println!("{} pair-specific interactions", interactions.len());
+    println!("{} pair-specific interaction genes", params.interactions.len());
 }

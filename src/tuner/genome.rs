@@ -44,18 +44,25 @@ impl Caps {
     pub fn gene_len(&self) -> usize { self.skeleton().gene_len() }
     /// Runs the expensive reference measurement, once per campaign.
     pub fn probe(&self) -> Probe { Probe::new(&self.skeleton()) }
-    /// Decode a full genome into runtime Params, splitting the world prefix off the pair genes,
-    /// clamping coordination and logits, and resolving the box from the probe. Callers verify
-    /// the genome length against gene_len first; a short genome panics here.
+    /// Decode a full genome into simulation-ready Params: the box resolved from the probe, then
+    /// everything clamped by params_at. The one genome -> Params path in the codebase.
     pub fn params(&self, genome: &[f32], probe: &Probe) -> Params {
+        let coordination = finite(genome[0], COORDINATION_BOUNDS.0).clamp(COORDINATION_BOUNDS.0, COORDINATION_BOUNDS.1);
+        self.params_at(genome, probe.box_len(coordination))
+    }
+    /// Decode at a known box size, clamping the world prefix and the pair genes to that box's
+    /// bounds, so any genome (mutated, archived, hand-fed, restored) is safe to simulate and
+    /// two decodes of the same genome at the same box are bit-identical. Callers verify the
+    /// genome length against gene_len first; a short genome panics here.
+    pub fn params_at(&self, genome: &[f32], box_len: f32) -> Params {
         let (world, interactions) = genome.split_at(1 + self.anchor_count);
-        let coordination = finite(world[0], COORDINATION_BOUNDS.0).clamp(COORDINATION_BOUNDS.0, COORDINATION_BOUNDS.1);
         let mut params = self.skeleton();
-        params.coordination = coordination;
+        params.coordination = finite(world[0], COORDINATION_BOUNDS.0).clamp(COORDINATION_BOUNDS.0, COORDINATION_BOUNDS.1);
         params.trait_distribution = world[1..].iter()
             .map(|&gene| finite(gene, 0.0).clamp(TRAIT_LOGIT_BOUNDS.0, TRAIT_LOGIT_BOUNDS.1)).collect();
         params.interactions = interactions.to_vec();
-        params.box_len = probe.box_len(coordination);
+        clamp(&mut params.interactions, &self.pair_bounds(box_len));
+        params.box_len = box_len;
         params
     }
     /// Per-gene bounds for the full genome. Pair-block bounds are widest at the largest box, so
