@@ -378,7 +378,7 @@ pub struct Renderer {
     last_tick: Option<u64>,
 }
 
-pub(super) struct Scene<'a> {
+pub struct Scene<'a> {
     pub positions: &'a [f32],
     pub traits: &'a [f32],
     pub extent: f32,

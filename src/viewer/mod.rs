@@ -1,7 +1,7 @@
 //! The fixed-three-dimensional explorer. App state is one Caps, one full genome, and the Sim
 //! they decode into; everything drawn derives from the sim.
 
-mod camera;
+pub mod camera;
 mod controls;
 pub mod material; // the reference field semantics, the crate's testable render surface
 mod particles;

@@ -1,22 +1,16 @@
 //! Render a deterministic CPU reference frame for visual inspection.
 
+use axiom::engine::sim::Sim;
 use axiom::tuner::archive::Archive;
+use axiom::tuner::genome::Caps;
 use axiom::viewer::{write_reference_snapshot, MaterialRecipe};
-use axiom::engine::world::World;
-use axiom::engine::genome::Params;
 use std::path::Path;
 use std::process::ExitCode;
 
 fn main() -> ExitCode {
     match render() {
-        Ok(path) => {
-            println!("wrote {path}");
-            ExitCode::SUCCESS
-        }
-        Err(problem) => {
-            eprintln!("{problem}");
-            ExitCode::FAILURE
-        }
+        Ok(path) => { println!("wrote {path}"); ExitCode::SUCCESS }
+        Err(problem) => { eprintln!("{problem}"); ExitCode::FAILURE }
     }
 }
 
@@ -34,8 +28,7 @@ fn render() -> Result<String, String> {
     let mut iso = None;
     let mut absorption = None;
     for argument in std::env::args().skip(1) {
-        let (key, value) = argument
-            .split_once('=')
+        let (key, value) = argument.split_once('=')
             .ok_or_else(|| format!("expected key=value, got {argument:?}"))?;
         match key {
             "out" => output = value.to_owned(),
@@ -54,53 +47,30 @@ fn render() -> Result<String, String> {
         }
     }
 
-    let (mut world, derived) = if let Some(path) = archive_path {
-        let text = std::fs::read_to_string(&path)
-            .map_err(|problem| format!("could not read {path}: {problem}"))?;
+    let params = if let Some(path) = archive_path {
+        let text = std::fs::read_to_string(&path).map_err(|problem| format!("could not read {path}: {problem}"))?;
         let (archive, mut tuning) = Archive::from_text(&text)?;
-        if let Some(particles) = particle_override {
-            tuning.world.particles = particles;
-        }
-        let selected = archive
-            .entries()
-            .get(entry)
-            .ok_or_else(|| format!("archive has no entry {entry}"))?;
-        let (params, interactions) = tuning.world.resolve(&selected.genome);
-        let geometry = params.geometry();
-        (
-            World::with_geometry(&params, &geometry, interactions),
-            MaterialRecipe::for_world(geometry.extent, params.particles),
-        )
+        if let Some(particle_count) = particle_override { tuning.world.particle_count = particle_count; }
+        let selected = archive.entries().get(entry).ok_or_else(|| format!("archive has no entry {entry}"))?;
+        tuning.world.params(&selected.genome, &tuning.world.probe())
     } else {
-        let params = Params {
-            particles: particle_override.unwrap_or(320),
-            seed,
-            ..Default::default()
-        };
-        let geometry = params.geometry();
-        let genome = params
-            .layout()
-            .default_genome(params.radius, geometry.extent);
-        (
-            World::with_geometry(&params, &geometry, &genome),
-            MaterialRecipe::for_world(geometry.extent, params.particles),
-        )
+        let caps = Caps { particle_count: particle_override.unwrap_or(320), seed, ..Caps::default() };
+        let probe = caps.probe();
+        caps.params(&caps.default_genome(&probe), &probe)
     };
+    let derived = MaterialRecipe::for_world(params.box_len, params.particle_count);
     let recipe = MaterialRecipe {
         resolution: resolution.unwrap_or(derived.resolution),
         support: support.unwrap_or(derived.support),
         iso: iso.unwrap_or(derived.iso),
         absorption: absorption.unwrap_or(derived.absorption),
     };
-    for _ in 0..steps {
-        world.step();
-    }
-    write_reference_snapshot(Path::new(&output), &world, &recipe, width, height)?;
+    let mut sim = Sim::new(&params);
+    sim.run(steps as u64);
+    write_reference_snapshot(Path::new(&output), &sim, &recipe, width, height)?;
     Ok(output)
 }
 
 fn parse<T: std::str::FromStr>(key: &str, value: &str) -> Result<T, String> {
-    value
-        .parse()
-        .map_err(|_| format!("bad value for {key}: {value:?}"))
+    value.parse().map_err(|_| format!("bad value for {key}: {value:?}"))
 }
