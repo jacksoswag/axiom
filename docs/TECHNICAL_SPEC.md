@@ -1,424 +1,369 @@
 # AXIOM technical specification
 
-AXIOM searches for three-dimensional Particle-Lenia worlds that persist, repair themselves, and contain distinct local regimes. The system simulates, evaluates, archives, promotes, renders, and checkpoints those worlds. Rendering derives visible material from simulator state and adds no autonomous animation.
+AXIOM is a Rust library that searches Particle-Lenia interaction laws. A law is a bounded flat `Vec<f32>`. The engine decodes one into a simulation and steps it, `run` reduces a stepped simulation to a descriptor, and the tuner gates, scores, and breeds those descriptors.
 
-Present-tense statements describe code in this repository. Items marked as future work are not implemented.
+This document describes the code in this repository. Where the two disagree, the code is right and this document is stale.
 
 ## 1. Design invariants
 
-These constraints are structural. Changing one changes what the system is.
+These are enforced by the code, not by convention.
 
-| Invariant | Consequence |
-|---|---|
-| Particle dynamics | Cost follows particle count instead of dense voxel count. |
-| Three spatial dimensions | Search effort goes into worlds the product can display and inhabit. |
-| Periodic torus | Worlds have no terminal boundary and structures cross every face. |
-| Derived extent | Coordination controls density; extent never becomes an unrelated free scale. |
-| Measured density norms | Normalized potential means the same thing across particle counts and traits. |
-| Closed-form derivatives | The simulator has no autodiff or tensor dependency. |
-| Novelty-led evolution | Search rewards behavioral difference instead of one global quality number. |
-| Binary viability | A gate decides whether a candidate qualifies as living. It never ranks survivors. |
-| Causal rendering | Geometry, color, motion, and emission derive from particle state. |
-| One tuning surface | Every per-run setting lives in one struct behind one entry point. |
+| Invariant | Where it lives | Consequence |
+|---|---|---|
+| One-way dependency | `engine` imports nothing from `tuner` or `run` | The simulation cannot acquire a dependency on how it is searched. |
+| The tuner touches no simulation | `tuner` builds no `Sim`; `run` is the only place one is constructed to be measured | Every criterion reads behavior the same way. |
+| Dimensionality is data | `FixedGenome::dimensions`, read by substrate, step, distance, probe | No constant fixes how many axes a particle has. |
+| The measurement grid is three-axis | `field::GRID_AXES`, checked in `Search::new` | A search rejects a genome shaped any other way, at the one door into a search. |
+| Periodic bounds | minimum-image distance, `rem_euclid` on every wrap | Structures cross every face and there is no terminal boundary. |
+| Box size is derived | `Probe::box_len` from the coordination gene | Density is controlled; extent is never a free scale. |
+| Norms are measured, never assumed | `Matrix::norm_densities` on a fixed uniform reference | Normalized potential means the same thing across particle counts and traits. |
+| Closed-form derivatives | `strength_and_slope` returns value and slope together | No autodiff and no tensor dependency. |
+| One shared descriptor axis | every metric clamps into `[0, 1]` | No raw statistic with a wide range dominates a distance. |
+| The plan is declared, not assumed | `plan(criterion.metrics() ++ gate metrics)` | Nothing outside a criterion and the gates can move what gets measured. |
+| Determinism | seeded xorshift, index tie-breaks, order-preserving parallel filter | A parallel batch judges identically to a serial one. |
 
-The dependency runs one way. `engine` is a pure function of a flat genome and imports nothing from `tuner` or `viewer`, so the simulation cannot acquire a dependency on how it is searched or drawn.
+## 2. Simulation state
 
-## 2. Authoritative world state
-
-Each particle carries a position and a fixed continuous trait:
+A particle carries a position and one fixed trait:
 
 ```text
-x_i in T^3       position on the periodic world
-c_i in [0, 1]    continuous trait
+x_i in [0, box_len)^dims    position, wrapped
+c_i in [0, 1]               trait
 ```
 
-Position is the only dynamical particle state. The update is first-order gradient descent on the Particle-Lenia energy. Traits are fixed for the duration of a rollout; spatial self-organization can sort that continuum into niches, but trait motion, birth, death, and inheritance require a separate biological model and are outside this contract.
+Position is the only dynamical state. Traits are assigned at seeding and never move. Spatial self-organization can sort the trait continuum into regions; trait motion, birth, death, and inheritance are not in this crate.
 
-A run's authoritative state is reconstructible from its parameter set alone: genome genes, derived box size, timestep, and seed, plus the pair control net with its measured norms and the tick count. Density volumes, meshes, spatial indexes, and GPU buffers are caches that rebuild from that state.
+`Sim` is the authoritative state and is reconstructible from `FixedGenome`, `Genome`, and the resolved box. `Substrate` holds positions, traits, box length, softening, and dimensionality. The spatial hash grid inside it is a cache derived from those positions, and it reflects whatever they were at the last rebuild rather than authoritative state.
 
-## 3. Continuous trait interaction field
+### 2.1 Spatial index
+
+The grid holds one cell per interaction cutoff, stored compressed: a particle list sorted by cell, plus cell edges in list space. A neighbor walk visits the home cell and all `3^dims` surrounding cells; callers still distance-check, since the walk yields candidates rather than neighbors.
+
+The grid deactivates below three cells per axis, where the stencil wraps onto itself and would visit a particle twice, and above `2^21` cells, where allocation stops paying. Both fall back to an all-pairs walk yielding the same candidate set. A test asserts the two walks agree on a seeded fixture.
+
+## 3. Interaction law
 
 ### 3.1 Trait basis
 
-`M` fixed anchors divide the trait interval. Piecewise-linear hat functions interpolate between them:
+`M` anchors sit evenly spaced on a circle. Piecewise-linear hats interpolate between them:
 
 ```text
 alpha_a(c) >= 0
 sum_a alpha_a(c) = 1
 ```
 
-At most two adjacent anchors have nonzero membership, and at an anchor the membership is exactly one-hot. Anchors sit evenly spaced on a circle, so a trait wraps at the seam instead of clamping. This basis is an exact bridge from a discrete species model while traits stay fixed. A smooth basis belongs in a later trait-dynamics experiment, where derivatives with respect to `c` would matter.
+At most two adjacent anchors have nonzero membership, and at an anchor the membership is exactly one-hot. Placing anchors on a circle wraps the trait axis at the `0/1` seam instead of clamping it. With one-hot traits the whole model reduces exactly to a discrete pair-specific one, which is what makes the continuous form a generalization rather than a replacement.
 
-### 3.2 Pair-indexed control net
+Seeding matches the population's anchor distribution to the genome's logits exactly. Logits go through an exponential with a small floor, each bin's exact share is floored to an integer, and leftover particles go to the bins with the largest fractional remainder, ties by index. Each bin's quota is then filled with traits drawn uniformly from that bin's slice of `[0, 1)`.
 
-Every ordered anchor pair `(a, b)` owns its own kernel, growth curve, and directed weight:
+### 3.2 Pair-indexed matrix
+
+Every ordered anchor pair `(a, b)` owns a kernel, a growth curve, and a directed weight:
 
 ```text
 U_ab(i)    = sum_(j != i) alpha_a(c_j) K_ab(d_ij)
 Uhat_ab(i) = U_ab(i) / norm_ab
 
-E_i = -sum_a sum_b alpha_b(c_i) w_ab G_ab(Uhat_ab(i))
-
-delta x_i = dt sum_a sum_b alpha_b(c_i) w_ab G'_ab(Uhat_ab(i))
+delta x_i = 2 dt sum_a sum_b alpha_b(c_i) w_ab B'_ab(Uhat_ab(i))
             / norm_ab grad U_ab(i)
 
 grad U_ab(i) = sum_(j != i) alpha_a(c_j) K'_ab(d_ij) delta_ij / d_ij
 ```
 
-`delta_ij` uses minimum-image torus displacement with smooth distance softening. With one-hot traits at the anchors these equations reduce exactly to a discrete pair-specific implementation.
+The factor of two is the surviving term of `G = 2B - 1` under differentiation: only the slope enters movement, and the `-1` dies there.
 
-A pair's position in the net is its `(source, destination)` identity, so neither the interaction nor its callers carry those indices separately.
+A pair's position in the matrix is its `(source, destination)` identity, so neither the interaction nor its callers carry those indices separately. Interactions are stored flat, source-major.
 
-### 3.3 Kernel and growth mixtures
+The step accumulates sensed potential and its gradient only for anchor pairs where both memberships are nonzero, which is at most four pairs per neighbor. It then converts potential into motion over every possible source against the receiver's own active anchors, because a source anchor with no local mass still contributes a defined response.
 
-Each pair keeps bounded Gaussian mixtures:
+`delta_ij` is minimum-image displacement. Softening is added last, after the per-axis squares, matching the accumulation order callers depend on.
+
+### 3.3 Shells and bumps
+
+Both mixtures are Gaussian. Shells act over distance, bumps over sensed density:
 
 ```text
-K_ab(d) = sum_m beta^K_abm exp(-(d - mu^K_abm)^2 / (2 sigma^K_abm^2))
-
-G_ab(u) = 2 sum_m beta^G_abm exp(-(u - mu^G_abm)^2 / (2 sigma^G_abm^2)) - 1
+K(d) = sum_m amp_m exp(-(d - peak_m)^2 / (2 width_m^2))
+G(u) = 2 sum_m amp_m exp(-(u - peak_m)^2 / (2 width_m^2)) - 1
 ```
 
-Only `G'` enters movement. A zero mixture amplitude disables a component. Kernel reach stays below `0.375 * extent` and every sigma has a positive lower bound. The neighbour loop truncates each Gaussian shell at `mu + 3.5 sigma`, roughly 0.2 percent of its peak, and skips terms whose amplitude is negligible so one inert term cannot inflate the search radius. This truncation is an explicit numerical approximation: the executed force carries a small hard cutoff and is not the exact gradient of the untruncated energy at that boundary.
+One function computes value and slope in the same loop, so the gradient reuses each term. A zero amplitude disables a component, which lets a search learn the active count instead of being told it.
+
+The neighbor loop truncates each shell at `peak + 3.5 * width`, roughly 0.2 percent of its peak, and skips terms whose amplitude is below `1e-6` so one inert term cannot inflate the reach and erase the saving. This truncation is an explicit numerical approximation: the executed force carries a small hard cutoff and is not the exact gradient of the untruncated energy at that boundary.
 
 ### 3.4 Norm calibration
 
-`norm_ab` is the mean `U_ab` measured on a deterministic uniform reference population: a fixed calibration seed, uniform positions, and uniform anchor traits, using the same kernel, torus distance, softening, and memberships as the real rollout. Calibration runs when a simulation is constructed, so every anchor pair sees reference mass. A clumped live state never becomes the density reference.
+`norm_ab` is the mean potential a receiver anchor senses from a source anchor, per unit receiver mass, measured on a deterministic reference population: a fixed calibration seed, uniform positions, and uniform anchor logits, using the same kernel, distance, softening, and memberships as the rollout. Calibration runs when a `Sim` is constructed, so every pair sees reference mass. A measured value at or below `1e-6` falls back to `1.0`. A clumped live state never becomes the reference.
 
-### 3.5 Derived geometry
+Seeding the reference with uniform logits rather than zeroed traits is load-bearing: with all traits at zero, every pair except `(0, 0)` sees no mass and silently takes the fallback. A test asserts that off-diagonal pairs get measured norms.
 
-Extent falls out of particle count, interaction radius, dimensionality, and the genome's coordination target. A single density probe measures the nominal coordination of a uniform population at a trial extent; a genome's coordination gene rescales that reference. The probe depends only on particle count, dimensionality, and radius, so a campaign measures it once and passes it to every candidate.
+### 3.5 Derived box size
+
+`Probe` measures the mean nominal potential a particle senses in a uniform population at a trial box of six radii, using a shell shaped by radius alone rather than any one genome's law, so every candidate in a search measures against the same reference. The measurement caps at 1,500 particles and rescales by the true density ratio, bounding its `O(n^2)` cost.
+
+A genome's coordination gene then rescales that reference:
+
+```text
+box_len(coordination) = trial_box_len * (measured / coordination)^(1 / dims)
+```
+
+The probe depends only on particle count, dimensionality, and radius, none of which vary per run, so a search builds one and threads it through every candidate.
 
 ## 4. Genome
 
-The genotype is one bounded `Vec<f32>`. Its shape, anchor count and the shell and bump caps, rides beside the genes in the shared parameter set, and the pair-block stride follows from those counts.
-
 ```text
 [ coordination ]
-[ trait-distribution logits ]
-[ M^2 pair blocks in source-major order ]
+[ anchor_count trait logits ]
+[ anchor_count^2 pair blocks in source-major order ]
 
 pair block =
-  shells * [kernel beta, mu, sigma]
-  bumps  * [growth beta, mu, sigma]
+  shells x [amp, peak, width]
+  bumps  x [amp, peak, width]
   [directed weight]
+
+pair_stride = 3 * (shells + bumps) + 1
+gene_len    = 1 + anchor_count + anchor_count^2 * pair_stride
 ```
 
-Anchor count and dimensionality are read from the parameter set, never fixed by a constant, so the step loop takes its shape from whatever genome it is handed.
+`FixedGenome` is the half a search holds still: particle count, dimensions, anchor count, shell count, bump count, radius, timestep, seed. `Genome` is the decoded half: coordination, the trait distribution, and the flat pair-block genes.
 
-Coordination stays a gene in a calibrated range because it changes physical density and belongs to the learned world law. Trait-distribution logits select an initial population density over trait bins; the decoder applies a small floor before normalization, then jitters traits deterministically inside each bin. Every evaluation seed receives the same trait histogram and a different reproducible spatial arrangement.
-
-## 5. The tuning surface
-
-Every per-run setting lives in one `Tuning` struct, and `tuner::campaign::run` is the only entry point.
-
-| Group | Contents |
+| gene | range |
 |---|---|
-| `world` | particle count, dimensionality, anchors, radius, integration rate, evaluation seed, shell and bump caps |
-| `discovery` | generations, steps, batch, bootstrap size, capacity, search seed, promotion budget, stall window, mutation scales, lane shares, curated parent indices |
-| `gates` | the six viability thresholds, the mobility floor, the two watchdog thresholds, and the sustained-window count |
-| `repair` | probe count, shake magnitude, recovery fraction, minimum effective damage |
-| `tiers` | persistence and certification step budgets, each optional |
-| `learning` | minimum labeled rows, model seed, continuation quotas, logistic hyperparameters |
+| coordination | `3.0` to `20.0` neighbors |
+| trait logit | `-4.0` to `4.0` |
+| shell amp | `0.0` to `1.0` |
+| shell peak | `0.0` to `min(2 * radius, reach / 2)` |
+| shell width | `min(0.05 * radius, peak_max / 4)` to `min(radius, reach / 7)` |
+| bump amp | `0.0` to `1.0` |
+| bump peak | `0.0` to `3.0`, over sensed density |
+| bump width | `0.05` to `1.5` |
+| directed weight | `-100.0` to `100.0` |
 
-A registry of 43 named knobs drives command-line parsing, generated help, and the archive header from one declaration. A knob cannot exist without documentation, and adding one reaches all three surfaces automatically.
+`reach` is `0.375` of the box, the point past which a shell would wrap into itself.
 
-### 5.1 What is not tunable
+Pair-block bounds depend on the box, which depends on coordination. A search mutates under bounds taken at maximum coordination, where the box and therefore the reach are widest, so every genome it can produce stays legal. A rollout re-clamps the pair genes at the box its own coordination gene resolves to, where reach is tighter. Clamping replaces any non-finite gene with its lower bound, so a single NaN cannot poison a decode.
 
-Descriptor geometry is fixed: the trait and radial bin counts, heterogeneity grid sides, autocorrelation lags, barcode bars, per-rollout sample count, mobility ceiling, and novelty neighbour count. These define what a descriptor axis means, size fixed-width arrays, and keep the descriptor width a compile-time constant. Changing one creates a new descriptor version rather than a run setting.
+## 5. Measurement
 
-Seed counts, pass requirements, and whether the world gate applies belong to the evaluation tier, not the run. A run chooses which tiers to spend on and how long each rollout is; it cannot weaken what a tier means.
+### 5.1 Spec and plan
 
-### 5.2 Evidence separation
+A metric is a `&'static Spec` written in its own file. The spec declares:
 
-Settings divide into two kinds. Search scheduling knobs, meaning seed, batch, generations, bootstrap size, capacity, promotion budget, and curated pins, change how much searching happens. Every other setting changes what an evaluation means or how it is judged, and folds into `Tuning::digest`.
+| field | meaning |
+|---|---|
+| `key` | stable name, and what two handles compare on |
+| `width` | slots it owns in a descriptor |
+| `sides` | grid resolutions it reads |
+| `depends` | metrics measured ahead of it, so its slots are already filled |
+| `reduce` | how its slots collapse across samples |
+| `pairs`, `graph`, `motion` | which shared blocks it needs |
+| `measure` | the function, taking the blocks and the descriptor so far |
 
-`ExperimentIdentity` carries that digest alongside the simulator, descriptor, genome-layout, and feature-schema versions and the fixed world parameters. Campaign state binds to an identity on first use. A batch that differs only in scheduling shares the ledger; a batch with different gates, mutation scales, lane shares, or repair protocol is refused with an experiment mismatch before any rollout work begins.
+`ALL` lists all ten metrics in dependency order. `plan` takes what the criterion and the gates want, closes the set over dependencies in one backward pass, and filters `ALL`, which yields dependencies ahead of dependents without a sort.
 
-## 6. Behavior descriptor v5
+A descriptor is a bare `Vec<f32>` and the plan is its layout, so reading one slot needs both. `slice` and `scalar` do that walk. A metric the plan skipped, and a descriptor from a simulation that died, both read empty.
 
-The descriptor describes a world rather than one global particle cloud. It uses true three-dimensional torus geometry and versioned fixed scaling. No feature reads a two-dimensional projection. The complete descriptor has 53 values.
+### 5.2 Shared blocks
 
-### 6.1 Trait-conditioned radial structure: 18 values
+Blocks are built once per sampled tick from the union of what the plan requests, so no metric constructs its own:
 
-Pair samples divide into three trait-distance bands and six log-spaced radial bands. Each count divides by a measured uniform baseline for the same trait distribution, so uniform matter reads approximately one in every populated bin. The global radial distribution measures interaction-scale order cheaply. It is not a biome metric.
+| block | requested by | contents |
+|---|---|---|
+| pair histogram | `pairs` | unordered pair counts per trait band and log radial bin, accumulated in `f64` |
+| spatial field | each entry in `sides` | periodic density, trait sum, trait square sum, and four-bin trait counts per cell |
+| barcode | `graph` | H0 death-scale counts from the cutoff-limited spanning forest |
+| motion | `motion` | the previous sample's positions, plus its side-16 grid |
 
-### 6.2 Local spatial heterogeneity: 15 values
+Grid sides are deduplicated, so two metrics wanting one resolution cost one grid. Asking for a block the plan never requested panics rather than inventing a reading. The barcode's grid rebuild is the only mutation of the substrate during measurement, and it is scratch either way because the next step re-buckets.
 
-Particles deposit into periodic grids with side lengths 4, 8, and 16. Each scale contributes five values computed over local cells:
+The `f64` accumulation in the pair histogram is not decoration: a thousand-particle simulation contributes half a million pairs, and `f32` starts dropping counts.
 
-1. density overdispersion after subtracting Poisson sampling variance;
-2. void probability;
-3. occupancy-weighted variance of local mean trait after a finite-population shot-noise correction;
-4. occupancy-weighted local trait entropy with a small-sample correction;
-5. axial density autocorrelation.
+### 5.3 Reduction
 
-These separate planted local biomes from a uniformly mixed trait field with similar global pair statistics. The shot-noise corrections matter: without them, sparse fine-grid cells make random trait mixtures look like biomes.
+| rule | for | behavior |
+|---|---|---|
+| `Mean` | ordinary observations | averaged across every sampled tick |
+| `Last` | anything that already read the history | the final tick's value |
+| `Once` | an experiment too costly to repeat | measured on the final sample only, zero-filled before that |
 
-### 6.3 Topology: 12 values
+`evaluate` runs a plan against one tick in order, each metric reading its dependencies out of the descriptor being built. Every output is resized to the declared width, so a miscount cannot shift the slots behind it. `fold` then collapses the per-tick readings by each metric's rule. A rollout that never sampled folds to an empty descriptor rather than a plausible row of numbers.
 
-- Seven values hold folded H0 death-scale mass from the cutoff-limited minimum spanning forest. Kruskal sees only toroidal particle pairs within the interaction cutoff.
-- One value holds a log-scaled mass for components still separate at that cutoff.
-- Two values hold the largest qualifying dense winding-component fraction at two density thresholds.
-- Two values hold the equivalent void winding-component fractions.
+### 5.4 The metrics
 
-Dense and void components use periodic adjacency. A phase contributes only if it occupies at least 8 percent of the grid and one of its components contains a non-contractible loop around at least one torus axis. A compact blob is therefore disconnected for product purposes even when all its occupied cells touch. The world gate asks for a material carrier and a flight space that continue through the periodic world.
+Fifty-four slots when all ten run. Every slot is clamped into `[0, 1]`.
 
-### 6.4 Dynamics and interaction: 8 values
+| slots | key | reduce | reading |
+|---:|---|---|---|
+| 18 | `rdf` | Mean | three trait-distance bands by six log radial bins, as ratios against the uniform start, on a symmetric log axis with a ratio cap of 20 |
+| 1 | `structure` | Mean | mean absolute departure of those ratios from 1 |
+| 15 | `heterogeneity` | Mean | five readings each on grids of side 4, 8, and 16 |
+| 4 | `connectivity` | Mean | largest winding-component fraction, dense then void, at 0.5 and 1.5 times mean density |
+| 8 | `topology` | Mean | seven folded H0 death-scale masses plus one log-scaled mass for components still separate at the cutoff |
+| 1 | `mobility` | Mean | mean minimum-image travel between samples, saturating at a tenth of the box |
+| 1 | `turnover` | Mean | absolute grid-mass change between samples on the side-16 grid |
+| 1 | `asymmetry` | Mean | departure of the directed weight matrix from its own transpose, normalized by the weights |
+| 4 | `temporal` | Last | variance of the spatial picture across samples, plus its autocorrelation at lags 1, 2, and 4 |
+| 1 | `robustness` | Once | mean share of injected damage closed against an undamaged control |
 
-Temporal variance of the spatial descriptor, autocorrelation at three fixed lags, minimum-image particle mobility, local material turnover, directed interaction-field asymmetry, and perturbation recovery fraction.
+**`rdf`** walks every pair, deliberately: its far bins reach the box half-diagonal, past any kernel cutoff, so the neighbor grid cannot help. Bins run from one mean particle spacing to the box corner. A bin the baseline left near empty reports 1.0, meaning no information rather than a division by almost nothing.
 
-Fixed formulas and explicit clamps map descriptor axes into a shared span. Ratios use a log transform with fixed bounds, heterogeneity uses feature-specific formulas, and H0 uses normalized forest bar mass. There is no descriptor calibration corpus, and archive statistics never rescale axes during a run.
+**`heterogeneity`** reads, per scale: density overdispersion after subtracting Poisson sampling variance; void probability; occupancy-weighted variance of local mean trait after a finite-population shot-noise correction, expressed as a share of the trait variance there is to explain; occupancy-weighted local trait entropy with a small-sample correction; and axial density autocorrelation. Both corrections are load-bearing. Without the Poisson subtraction a uniform swarm reads as heterogeneous merely because the grid is fine; without the shot-noise subtraction, single-particle cells on fine grids read as distinct regions. The three scales stay separate rather than averaged, because sub-structure lives at one scale and averaging hides it.
 
-The eight temporal windows spread across the latter half of each rollout, so autocorrelation lags are fractions of that tier's horizon rather than a fixed number of simulator steps. This suits within-tier description and must not be read as one universal physical decay constant.
+**`connectivity`** blurs density with a separable three-tap kernel before any threshold, so one stray particle cannot register as a dense phase. It then flood-fills each phase carrying an integer lift: the count of steps taken along each axis to reach a cell without wrapping. Arriving at a visited cell with a disagreeing lift means the two walks differ by a full loop, which detects a box-spanning phase using nothing but integers. A phase contributes only if it fills at least 8 percent of the grid and one of its components carries such a loop, so a compact blob is disconnected here however many of its cells touch. Dense fractions come first, then void, which is the order `criterion::structure` splits them on.
 
-## 7. Viability and world qualification
+**`topology`** exploits the fact that H0 death scales are exactly the edge weights of the Euclidean minimum spanning tree, so the whole cluster hierarchy costs one spanning forest. Edges stop at the kernel cutoff: clumps no kernel can reach across are not one structure at any scale. Ties break by index so the forest, and therefore the barcode, is reproducible. Union-find uses path halving and union by size.
 
-AXIOM has no scalar fitness function. It has a Boolean gate, a novelty measure, and one learned scheduling model with limited authority.
+**`temporal`** is the only metric reading other metrics. It pulls the `rdf`, `heterogeneity`, and `connectivity` slices out of each sampled descriptor, lays them end to end as that tick's picture, and asks how far the picture moved and how much it still resembles itself a few samples later. Those axes already sit in shared units, so nothing needs rescaling. A lag correlation near 1 means it looks the same later, so a frozen crystal and a slow drift both read high. With too few samples it defaults to assuming static, which fails a variance floor rather than sneaking past one.
+
+**`robustness`** is the only metric running an experiment. It snapshots the substrate, steps an undamaged control forward 100 steps, then for each of three probes shakes one local neighborhood by half a kernel reach, steps the damaged copy the same 100 steps, and measures how far it got back toward where the control ended. Comparing against the future control rather than the present state means ordinary drift is not billed as damage. A probe whose shake moved the signature by less than `0.01` is discarded as proving nothing; a copy that blows up closes nothing and is scored as such.
+
+The score is a mean share of damage closed, not a count of probes clearing a threshold. Counting gave a step function with four levels that sat on zero for most genomes, so anything multiplying by it lost its gradient entirely.
+
+Its signature is `rdf`, `heterogeneity`, and `connectivity`, read through the same plan machinery the descriptor uses, so damage and recovery land in the space the search already thinks in. `robustness` is deliberately absent from that list, which is what keeps it from recursing into itself. Its four constants are fixed rather than run settings: changing any of them changes what a robustness reading means, so two runs that disagreed about them were never comparable.
+
+## 6. Rollout
+
+`run::sim` is the only place a `Sim` is built to be measured. It decides when to look, never what at.
+
+1. Decode the flat genome, resolve the box from its coordination gene, re-clamp the pair genes at that box.
+2. Build the `Sim`. The uniform start's pair histogram becomes the structure baseline.
+3. Step. A non-finite coordinate ends the rollout and returns empty.
+4. Sample eight times at a fixed interval across the latter half of the run.
+5. From the second sample on, check the gates as a partial reading. Two consecutive failures end the rollout.
+6. Fold the history into one descriptor.
+
+The first sample has nothing behind it, so anything reading change reads zero there and is not held against the genome. An abandoned rollout returns an empty descriptor, which reads zero everywhere and therefore clears no gate carrying a floor. Patience of two rather than one is deliberate: a simulation can dip out of a band and climb back within a sample.
+
+## 7. Gates
 
 ```text
-V(g, s, r) = alive AND structured AND active AND bounded AND repaired
-
-N(g) = (1 / k) sum_(j in k nearest archive neighbors) distance(z_g, z_j)
+Gate { metric, floor, ceiling }
 ```
 
-`V` decides admission. `N` decides exploratory priority. Neither substitutes for the other.
+A valid range on one metric, read in that metric's own descriptor units. Gates are owned by the `Search` rather than declared as constants, because a caller builds them at runtime. A partial reading, taken mid-rollout, skips any gate whose metric reduces `Once`, since that metric only lands on the final sample. A dead simulation reads zero everywhere, so any gate with a floor rejects it.
 
-The base gate reports the first failing clause:
+Whether a genome is worth ranking at all is the gate's job, which is why no criterion reads a threshold.
 
-| Clause | Rejection | Meaning |
-|---|---|---|
-| finite state and descriptor | Dead | Integration diverged or produced invalid values. |
-| departure from uniform baseline | Dispersed | The world remained a gas. |
-| upper structure bound | Collapsed | Matter imploded into the shortest scale. |
-| mobility and temporal variation floors | Frozen | Structure exists without ongoing change. |
-| recovery after local positional shocks | Fragile | The organization does not restore itself. |
+## 8. Criteria
 
-Promotion tiers add Boolean world clauses for local heterogeneity, connected material, and connected void.
+A criterion produces one number, names the metrics it reads so a rollout measures them, and ranks nothing else. Adding one means a module and a variant, and both matches stop compiling until it is wired in.
 
-Every threshold is a `Tuning` field rather than a constant, so a campaign can tighten or loosen what counts as living. Thresholds are fixed for the duration of a run: no campaign calibrates or adapts them mid-search. Signed clause margins accompany each verdict, which makes labels useful to the scheduling model without turning any gate into a score.
+### 8.1 Novelty
 
-## 8. Evaluation ladder
+Population-relative. The score is the mean distance to the fifteen nearest behaviors already found, over the whole descriptor rather than any one metric, so it needs no plan. An empty population scores zero: an opening generation survives on capacity and the gate, never on invented novelty. The neighbor count is fixed rather than a per-run setting, so two searches compare.
 
-Every candidate starts cheaply. Cost rises only after evidence warrants it.
+Its `Vec<Metric>` is the axes it wants to spread genomes across, not a dependency list. Novelty names no metric of its own; it wants a space to be far apart in, and the gates widen that space too, since distance reads the whole plan.
 
-| Tier | Main rollout per seed | Seeds | Decision |
-|---|---:|---:|---|
-| Discovery | 1,500 steps or longer | 1 shared seed | Pass the five base clauses. |
-| Persistence | 10,000 steps or longer | 3 seeds | At least two seeds pass all base and world clauses. |
-| Certification | 100,000 steps or longer | 5 unseen seeds | At least four seeds pass the aggregate base and world gates. |
+### 8.2 Structure
 
-Those numbers name the main rollout, not total force-integration work. A seed that reaches its end also runs one undamaged control and three damaged continuations, each for one quarter of the main horizon, so a completed seed costs about twice the tabled step count. Early failure reduces that cost.
+Absolute, so unlike novelty it can be climbed toward, and unlike novelty it can be fooled: a static lattice satisfies the contrast term outright.
 
-A budget shorter than its tier's minimum is rejected before any rollout work. Certification requires persistence.
+| clause | source |
+|---|---|
+| contrast | best scale's `min(density overdispersion, trait variance)` from `heterogeneity` |
+| material | weakest dense winding fraction from `connectivity` |
+| void | weakest void winding fraction from `connectivity` |
+| repair | `robustness` |
+| change | `turnover` |
 
-The evaluator retains eight late-rollout windows for every completed seed and stops a seed after non-finite state, sustained dispersion, or sustained collapse. A temporary excursion cannot trigger an early failure. Windows record evidence for later features; the current tier decision has no window-drift predicate.
+Clauses multiply, so weakness anywhere costs everywhere; a sum would let beautiful contrast and no motion whatsoever place well. Contrast is read at the scale that shows it most, since sub-structure lives at one scale.
 
-Certification runs only for persistence-passing candidates. After a certification tier passes, the campaign replays one passing seed for the tier budget and snapshots it, clamping the render support radius to at most one quarter of the resolved extent so the checkpoint stays valid for small worlds. That produces a certified preset in memory and, when a preset directory is configured, saves its immutable state and manifest before the campaign returns.
+Each clause is floored at `0.02` before the product. Multiplying raw, a simulation missing one clause scored exactly zero no matter how it did on the other four, and since a tournament breaks ties toward its first draw, a population of zeroes made selection random. Floored, the conjunction still costs an order of magnitude and the other four stay rankable.
 
-Persistence labels come from persistence-tier outcomes. Certification outcomes stay in the ledger, and the persistence trainer does not use them as labels.
+`METRICS` sits beside `score` so the two move in one edit. A metric missing from a plan reads zero and silently zeroes the product, so drift there is a bug that never announces itself.
 
-## 9. Evolutionary search
+## 9. Search
 
-### 9.1 Bootstrap and offspring
+`Search` is one complete run. Six inputs: fixed genome, algorithm, criterion, gates, rollout length, seed. Three derived: the probe, the per-gene bounds, and the metric plan.
 
-The archive evaluates one deterministic default genome and a deterministic random population. The default is a reproducible starting probe, not a trusted viable seed; it passes the same gate as everything else. Iso+LineDD is the mutation and recombination operator:
+`Search::new` panics if the genome's dimensionality differs from the measurement grid's three axes. That check sits at the one door into a search, because any other shape would index cells that do not line up with the genome's own coordinates.
+
+`Search::run` executes the algorithm and returns the surviving population sorted best score first.
+
+`Search::run_genome` is the per-candidate path: simulate, reject an empty or non-finite descriptor, apply the gates as a final reading, score against the population, and return a `Specimen` carrying genome, descriptor, and score. Cost is the simulation.
+
+### 9.1 The generation loop
+
+1. Re-score the whole population. A population-relative criterion leaves every stored score stale the moment the population moves around it. Each member is scored against a set containing it, so the bias is identical for everyone and can never change an ordering.
+2. Propose a batch across three lanes.
+3. Evaluate in parallel with an order-preserving filter, so a parallel batch judges identically to a serial one.
+4. Retain.
+
+Generation zero proposes against an empty population, which comes back as fresh draws, so the opening sample needs no special case.
+
+### 9.2 Lanes
+
+| lane | parent |
+|---|---|
+| tournament | binary tournament on score, ties falling to the first draw |
+| expedition | whichever member sits nearest a uniform random point in descriptor space |
+| fresh | a new uniform draw over the bounds |
+
+The two named shares are fractions of the batch; fresh draws take whatever they do not claim, so the three always sum to the batch regardless of rounding and there is always a way out of a converged population. Zero both named lanes and every slot comes back a fresh draw, which is the random-search baseline a real setting has to beat: if random matches evolution under some criterion, that criterion is not steering.
+
+An expedition throws a dart at a uniform point in descriptor space and mutates whichever member landed nearest it. In dozens of dimensions that is a random goal direction rather than coverage-aware illumination, and that is the intent: distant intentions without a model inventing state.
+
+### 9.3 Mutation
 
 ```text
 child = a
-      + sigma_iso * gene_range * Normal(0, I)
-      + sigma_line * Normal(0, 1) * (b - a)
+      + iso * gene_range * Normal(0, I)
+      + line * Normal(0, 1) * (b - a)
 ```
 
-Bounds clamp every child. Both scales are tuning fields.
+Independent noise scaled to each gene's own range, then one shared draw along the difference vector toward a second parent, so a child inherits a direction the population already contains instead of dissolving into undirected noise. The second parent is itself drawn by tournament. Bounds clamp every child.
 
-### 9.2 Generation transaction
+### 9.4 Retention
 
-Each generation performs one deterministic transaction:
+An evaluated generation folds into the population that survives it. Members sort best score first, and one is kept only if it sits clear of everything already kept. The cutoff is a quarter of the population's own median nearest-neighbor spacing: a fraction rather than an absolute distance, so it holds whatever units and however many axes a descriptor turns out to have. A population of identical genomes has zero spacing and drops nothing, which is what lets an opening generation through. The top scorer in a cluster survives and the rest of that cluster does not, so a converged batch cannot fill the population with copies of one genome.
 
-1. Freeze the archive descriptor snapshot; its current novelty is fresh from the previous merge.
-2. Choose parents by novelty tournament, goal expedition, or random restart.
-3. Evaluate the batch in parallel, preserving batch order.
-4. Apply the binary gate.
-5. Score viable candidates against the same frozen snapshot.
-6. Merge candidates, recompute current novelty and crowding on the combined set, and enforce capacity without insertion-order dependence.
-7. Queue a stratified subset for longer evaluation.
-
-Admission novelty is provenance. Current novelty controls parent choice and capacity. The two carry different names in storage.
-
-### 9.3 Search lanes
-
-Batch allocation splits between novelty-led offspring, goal expeditions, and fresh random genomes. Random takes whatever the first two do not claim, so the three always sum to the batch at any size and a random escape route survives even in tiny test batches. The default shares are 70 percent novelty and 20 percent expedition; both are tuning fields.
-
-Curated parent indices may supply archived parents for up to half the expedition slots. That is an explicit search input.
-
-An expedition samples every descriptor coordinate independently and uniformly, selects the archived behavior nearest that target, and mutates its genome. It does not estimate a sparse occupied region. In 53 dimensions most uniform targets are far from the realized manifold, so the mechanism is best understood as random goal direction rather than coverage-aware illumination. It adds distant intentions without letting a language or image model invent simulation state.
-
-`lineage_id` identifies a founder family; a random or bootstrap founder takes an ID derived from its exact initial genome and descendants inherit the primary mutation parent's. The separate `genome_hash` identifies an individual rule. That distinction keeps close relatives in one held-out learning partition.
-
-### 9.4 Stall handling
-
-The search declares a stall when both median current novelty and occupied descriptor neighborhood count fail to improve across the configured window. It shifts the batch toward expedition and random, and multiplies both mutation terms by the stalled spread factor. It does not inspect rejection histograms or target gene blocks. All four stalled shares and the spread factor are tuning fields.
-
-## 10. Long-horizon scheduling
-
-The persistence model predicts which short runs deserve expensive continuation. It never admits an archive entry, selects a mutation parent, or certifies a preset.
-
-### 10.1 Dataset
-
-`CampaignLedger` stores an append-only record for each imported discovery record or tier seed: identity, source and tier, requested budget, seed, final metrics, versioned feature vector, gate margins and results, early-stop code, retained windows, and the tier-wide pass result. Tier evaluations include the candidate genome and windows. Discovery imports come from search records that carry neither, so those fields stay empty rather than fabricated.
-
-Failed and early-stopped records remain in the ledger. The trainer forms one discovery feature row per `(genome_hash, lineage_id)` and joins it only to persistence-tier labels.
-
-### 10.2 Model and training
-
-A deterministic bagged logistic ensemble over standardized numeric features, with no tensor runtime. Each member trains on a lineage-grouped bootstrap with regularized binary cross-entropy:
-
-```text
-p_m = sigmoid(w_m dot f + b_m)
-
-loss = -y log(p_m) - (1-y) log(1-p_m) + lambda ||w_m||^2
-```
-
-The ensemble mean estimates survival probability and member standard deviation estimates uncertainty. Founder families assign deterministically to training, calibration, and test partitions. Calibration selects a temperature. The held-out report includes Brier score, precision-recall area, calibration error, precision at budget, and recall at budget.
-
-Training waits until enough labeled discovery rows have joined persistence outcomes. After training, the scheduler gains authority only when the untouched test set carries enough positive and negative founder families, Brier score beats the training base-rate predictor by a margin, and recall in the top fraction clears a floor. These are code policy thresholds, not universal constants.
-
-Continuation slots then use fixed quotas: some by predicted survival, some by ensemble uncertainty, and some spread across descriptor neighborhoods. The uniform quota keeps producing counterexamples and protects the dataset from selection bias. An unauthoritative model leaves selection to the deterministic neighborhood-uniform fallback.
-
-## 11. Durable formats
-
-| Collection | Contents | Authority |
-|---|---|---|
-| Discovery archive | Tuning header, genome, lineage, descriptor, gate result, admission and current novelty | Parent source and behavior history |
-| Campaign ledger | Imported discovery or tier seed evidence, features, gates, early-stop code, windows, tier pass | Training evidence |
-
-Discovery archive text is format v9. Its header serializes every knob through the tuning registry, so an archive file records the exact regime that produced and judged it and a reader can reproduce both. Archive capacity uses current novelty and crowding.
-
-Campaign state is checksummed binary format v4, atomically replaced. It persists the ledger and the experiment identity. It does not persist the discovery archive, RNG state, generation number, stall history, promotion queue, or current model. A later invocation starts an independent search batch and should use a new search seed. Exact duplicate discovery records are ignored, and candidates with existing persistence or certification evidence are not rerun. This is evidence continuation, not bitwise search resumption.
-
-Version mismatches fail closed. There is no migration path in either format: a file from a different version is rejected with a named error rather than reinterpreted.
-
-## 12. Checkpoints
-
-An archive entry stores a discovered genome and its behavior evidence. A checkpoint stores a place.
-
-```text
-WorldManifest
-  world_id, simulator_version, descriptor_version, genome_layout_version
-  render recipe
-  campaign envelope: particle count, dimensionality, anchors, radius, rate, seed, shell and bump caps
-  resolved box size, tick
-  measured interaction norms
-  full capped genome
-  latest checkpoint id
-
-WorldState checkpoint
-  checkpoint_id, parent_checkpoint_id
-  world_id, tick
-  particle positions and traits
-  full genome
-```
-
-`WorldState` files are immutable. Saving creates a temporary sibling, flushes it, and publishes it without replacing an existing final name. The mutable `WorldManifest` is written atomically after its selected state file exists, so it can advance the latest checkpoint id. The optional parent checkpoint id is metadata only; no code walks a checkpoint parent graph.
-
-Loading validates both records, reconstructs the world, restores tick and particle state, and installs the saved interaction norms directly. Restore never recalculates those norms, which avoids platform-dependent calibration drift.
-
-Checkpoint identities are simulator v3, genome layout v2, descriptor v5, render recipe v1, manifest binary v4, and state binary v1. Manifest and state files carry independent checksums.
-
-A world compares against a recipe by comparing the genome it was built from. Decoding is deterministic, so genome equality answers the question exactly; measured norms are excluded because checkpoints save them separately.
-
-## 13. Rendering as a causal observation
-
-The renderer derives periodic material density from the live particles:
-
-```text
-rho(q)      = sum_i phi(||q - x_i||_T / h)
-trait(q)    = sum_i phi_i c_i / max(rho(q), epsilon)
-activity(q) = |rho_t(q) - rho_(t-1)(q)|
-```
-
-`phi` is a finite-support smooth visual kernel. The render recipe's support radius is a positive world-coordinate distance independent of interaction radius.
-
-The view combines an isosurface or narrow density band for connected material, volumetric emission and absorption for depth, normals from the density gradient for lighting, trait-weighted color with a limited cool-to-warm palette, and a sparse bead layer from deterministic strided samples of real particles.
-
-The recipe may use density, trait, activity, camera, and fixed lighting. It has no shader-time deformation, scrolling texture, animated noise, procedural erosion, or camera-driven simulation change. Pausing the simulation freezes every biological change in the image.
-
-| Path | Role |
-|---|---|
-| Particle sprites | Diagnostic ground truth and fallback. |
-| Periodic density material | Product view for three-dimensional worlds. |
-
-The particles remain the causal substrate while compact density reconstruction makes their collective state read as one luminous cavern or reef instead of unrelated balls. None of those channels invents geometry or motion. A world that is only a gas still renders as a gas, and a world without corridors cannot acquire corridors from the shader.
-
-The reference density backend runs on the CPU at modest resolution and defines field semantics for tests. A GPU backend can replace field construction or ray integration when particle counts require it, provided sampled density and seam behavior match the reference within a declared tolerance.
-
-## 14. Module map
+## 10. Module map
 
 | Module | Responsibility |
 |---|---|
-| `engine/substrate.rs` | Particle positions, traits, box geometry, and the private spatial index. |
-| `engine/trait.rs` | Anchor basis, active memberships, trait seeding. |
-| `engine/kernel.rs` | Gaussian shell mixtures, analytic slopes, periodic distance. |
-| `engine/params.rs` | `Params`: the rollout parameter set every component shares, genome genes included. |
-| `engine/matrix.rs` | The pair control net, derived from the genome and calibrated. |
-| `engine/resolve.rs` | Derived box size from the measured density reference. |
-| `engine/lenia.rs` | The continuous-trait force step. |
-| `engine/sim.rs` | Authoritative run state, reconstructible from `Params` alone. |
-| `util.rs` | Deterministic xorshift stream and the crate's one hash. |
-| `tuner/genome.rs` | `Caps` and the genome codec: bounds, random and default genomes, decode to `Params`. |
-| `tuner/tuning.rs` | `Tuning` and the knob registry. |
-| `tuner/metrics.rs` | Versioned 53-value descriptor and window statistics. |
-| `tuner/persistence.rs` | H0 barcode computation. |
-| `tuner/viability.rs` | Named binary base and world clauses. |
-| `tuner/rollout.rs` | Tiered deterministic evaluation and perturbation probes. |
-| `tuner/novelty.rs` | Descriptor distance, current novelty, crowding. |
-| `tuner/search.rs` | Generation transaction, search lanes, lineage, promotion queues. |
-| `tuner/learning.rs` | Persistence ensemble and grouped evaluation reports. |
-| `tuner/archive.rs` | Versioned discovery archive and per-evaluation records. |
-| `tuner/ledger.rs` | Experiment identity, campaign records, the feature schema. |
-| `tuner/state.rs` | Durable campaign state: binary format, checksums, atomic writes. |
-| `tuner/campaign.rs` | The entry point: promotion tiers, scheduling, certification. |
-| `tuner/checkpoint.rs` | Atomic world manifests and checkpoints. |
-| `render_recipe.rs` | Versioned causal-material settings. |
-| `viewer/material.rs` | Reference periodic density field and causal material renderer. |
-| `viewer/particles.rs` | Particle diagnostic renderer and bead overlay. |
-| `viewer/runs.rs` | Discovery archive browser. |
-| `train.rs` | Search and promotion command line. |
+| `engine/substrate.rs` | Positions, traits, box geometry, and the private spatial hash grid. |
+| `engine/trait.rs` | Anchor basis, active memberships, trait seeding from logits. |
+| `engine/kernel.rs` | Gaussian mixtures with analytic slopes, periodic distance, the cutoff radius. |
+| `engine/params.rs` | `FixedGenome` and `Genome`: layout, decode, uniform draws, per-gene bounds, clamping. |
+| `engine/matrix.rs` | The pair-indexed interaction matrix, derived from a genome and calibrated. |
+| `engine/resolve.rs` | `Probe`: the measured density reference and the box a coordination gene resolves to. |
+| `engine/lenia.rs` | One Particle-Lenia step. |
+| `engine/sim.rs` | Authoritative run state, reconstructible from the genome halves and the box. |
+| `run.rs` | One genome in, one descriptor out. The only place a `Sim` is built to be measured. |
+| `util.rs` | Deterministic xorshift, Euclidean distance, the non-finite guard. |
+| `tuner/metrics.rs` | `Spec`, the plan, the shared blocks, evaluation and folding. |
+| `tuner/metrics/field.rs` | The periodic density and trait grid every spatial metric reads. Not a metric. |
+| `tuner/metrics/rdf.rs` | The all-pairs trait-by-radial histogram, and the radial distribution. |
+| `tuner/metrics/topology.rs` | H0 barcode from the cutoff-limited spanning forest. |
+| `tuner/metrics/robustness.rs` | The damage-and-recover experiment. |
+| `tuner/gate.rs` | Valid ranges on named metrics. |
+| `tuner/criterion.rs` | Which scoring function a search uses, and what it needs measured. |
+| `tuner/algorithms.rs` | Which search loop runs. |
+| `tuner/algorithms/evolve.rs` | Lanes, mutation, retention, the generation loop. |
+| `tuner/driver.rs` | `Search`: the assembled run and the per-candidate path. |
+| `tuner/specimen.rs` | A survivor: genome, descriptor, score. |
 
-## 15. Test evidence
+`structure`, `heterogeneity`, `connectivity`, `mobility`, `turnover`, `asymmetry`, and `temporal` each hold one measurement and its declared spec.
 
-These are code-level behaviors covered by the repository's tests. They do not establish the product target.
+## 11. Test evidence
 
-**Physics and traits.** Hat memberships sum to one, activate at most two adjacent anchors, and are exactly one-hot at an anchor. Trait seeding reproduces the logit histogram exactly. Grid and all-pairs neighbor walks agree on a seeded fixture. A seeded simulation is bit-reproducible, and every anchor pair calibrates a finite, positive measured norm.
+Twenty tests, all green, all in `tests/` outside `src/`. They cover code-level behavior.
 
-**Descriptor and search.** A planted separated-biome world differs from a uniformly blended world even when their global radial distributions are close. Uniform, collapsed, frozen, fragile, single-blob, and bicontinuous fixtures fail or pass the intended named clauses. Raising a gate threshold rejects a world that passed the default. Seeded parallel generations reproduce exactly. Reordering a viable batch does not change the retained archive set. Current novelty changes when archive density changes while admission novelty stays stable.
+**Engine, seven cases.** Hat memberships sum to one and activate at most two adjacent anchors, across two through six anchors. Memberships are exactly one-hot at an anchor. Trait seeding reproduces the logit histogram exactly. Grid and all-pairs neighbor walks return identical pair sets. Periodic distance uses the minimum image across the wrap seam. A seeded simulation is bit-reproducible over fifty steps. Every anchor pair calibrates a finite, positive norm, and off-diagonal pairs get measured values rather than the fallback an unseeded calibration substrate produces.
 
-**Tuning.** Every knob round-trips through its own displayed text. Knob keys are unique. The experiment digest separates measurement regimes from search effort: batch, generations, seed, capacity, and promotion budget leave it unchanged, while gates, mutation scales, repair settings, and lane shares change it. Lane counts always sum to the batch at every size.
+**Tuner, thirteen cases.** A plan pulls in what a wanted metric reads, places every dependency ahead of its dependent, and names each metric once however many callers asked for it. Descriptor width equals the sum of the plan's widths. Every metric reads onto the shared axis on a surviving rollout. A gate rejects below its floor and above its ceiling, and an empty descriptor clears no gate with a floor. A `Once` metric holds its slots at zero before the final sample without shifting the layout, and a partial check skips its clause while still judging the rest. A dependent metric finds its axes in the descriptor it is handed. The same genome measures identically twice. Some genome out of eight survives a rollout and fills its descriptor. The structure criterion tells genomes apart, which guards the failure where every clause multiplied raw, nearly every genome scored zero, and the search quietly became random.
 
-**Learning.** Grouped splits keep every lineage in one partition. Synthetic persistence data with a known signal produces calibrated ranking above chance. A deliberately useless model loses scheduler authority.
+## 12. Limits
 
-**Durability.** A checkpoint round-trip preserves every particle bit, trait bit, tick, and genome gene. A restored world continues bit-identically for 10,000 further steps. Corrupt length, checksum, version, and non-finite data produce named errors. An archive round-trips its tuning header and refreshes current novelty on load.
+Read as absences in the code, not as a roadmap.
 
-**Rendering.** Opposite torus faces sample equal density and produce no visible crack. The density field is a pure function of particle state. A particle bridge becomes connected material while separated clusters retain a void.
-
-## 16. The honest ceiling
-
-The largest unknown is whether Particle-Lenia can produce a bicontinuous carrier phase with several persistent local regimes. The renderer can reveal connected matter already present in the particles; search and physics must supply it.
-
-| Decision | Evidence needed to change it |
-|---|---|
-| Keep Particle-Lenia as the world engine | A three-dimensional Flow-Lenia prototype wins at equal runtime on persistence, recovery, bicontinuity, and diversity. |
-| Keep pair-indexed trait controls | An equal-budget search shows no meaningful loss from factorization and memberships stay exactly one-hot at anchors. |
-| Keep the hand-designed descriptor | A learned visual goal space improves held-out human diversity without collapsing physical diversity. |
-| Keep the reference renderer on CPU | Measured field or frame cost blocks the target particle count. |
-
-Known limits:
-
-- Traits stay fixed during a rollout. There is no trait inheritance, mutation during life, birth, death, or resource cycle.
-- The descriptor is hand-designed and versioned. It describes physical behavior without a projection, but it still encodes a prior. If v5 aliases visually different worlds, the next experiment is a distribution of local window vectors, which would create v6 after an ablation rather than a silent change mid-campaign.
-- Expedition targeting in 53 dimensions is random goal direction, not coverage-aware illumination.
-- The viewer reads archive recipes and replays initial seeds. Checkpoint browsing and a preset library are separate work.
-- Campaign files continue evidence across batches; they do not resume a half-finished generation.
-- Interactive room-scale rendering performance has not been established.
-- No certified world has yet validated the complete 100,000-step product target. The recorded novelty-versus-random comparison predates descriptor and gate corrections, so its values do not count as evidence for the current search.
+- **Traits are frozen.** No trait motion, birth, death, inheritance, or resource cycle.
+- **Nothing is written to disk.** No serialization of any kind, so a population exists for the life of the process that produced it and a search cannot be stopped and continued.
+- **No entry point.** No binary, no command line, and nothing that draws. A caller assembles a `Search` in Rust.
+- **One algorithm, one absolute criterion.** No comparison against another search family exists in the crate, so no claim about `Evolve` beating anything is supported here.
+- **The measurement grid pins a search to three axes** even though the engine reads dimensionality from data. Lifting it means generalizing `field` and `connectivity`, not relaxing the check.
+- **Explicit Euler at a fixed timestep.** Divergence is caught by a finiteness check, not prevented by the integrator.
+- **The shell truncation** puts a small hard cutoff in the executed force.
+- **Expedition targeting** in dozens of dimensions is random goal direction, not coverage-aware illumination.
+- **The metric set is hand-designed.** It reads physical behavior without a projection, and it still encodes a prior about what is worth noticing.
+- **`structure` can be satisfied by a static lattice** on its contrast term alone; only the `turnover` and `robustness` clauses stop that, and both are floored rather than required.

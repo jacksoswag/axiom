@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AXIOM: the masterdoc</title>
-<meta name="description" content="A search for persistent, explorable three-dimensional Particle-Lenia worlds. Read it at three depths: plain, analogy, and technical.">
+<meta name="description" content="A search over Particle-Lenia interaction laws. Read it at three depths: plain, analogy, and technical.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&amp;family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
@@ -237,7 +237,6 @@ footer .meta{margin-top:30px;padding-top:20px;border-top:1px solid rgba(243,236,
 }
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
 </style>
-</style>
 </head>
 <body class="level-2">
 <div id="progress"></div>
@@ -261,44 +260,37 @@ footer .meta{margin-top:30px;padding-top:20px;border-top:1px solid rgba(243,236,
 <div class="layout">
   <aside class="toc" id="toc">
     <h4>Contents</h4>
-    <div class="part">I · The bet</div>
+    <div class="part">I · The object</div>
     <ol>
-      <li><a href="#what">What it is</a></li>
-      <li><a href="#why">Why simulate instead of generate</a></li>
-      <li><a href="#boundary">The product boundary</a></li>
+      <li><a href="#what">What the crate is</a></li>
+      <li><a href="#halves">Two halves and a hinge</a></li>
+      <li><a href="#genome">One flat vector</a></li>
     </ol>
-    <div class="part">II · The world</div>
+    <div class="part">II · The simulation</div>
     <ol>
       <li><a href="#particles">Particles with a trait</a></li>
-      <li><a href="#net">The pair control net</a></li>
-      <li><a href="#geometry">Density decides the box</a></li>
-      <li><a href="#genome">One flat genome</a></li>
+      <li><a href="#matrix">Every ordered pair, its own law</a></li>
+      <li><a href="#step">What one step does</a></li>
+      <li><a href="#box">Density decides the box</a></li>
     </ol>
-    <div class="part">III · The search</div>
+    <div class="part">III · Measuring</div>
     <ol>
-      <li><a href="#descriptor">Describing a world in 53 numbers</a></li>
-      <li><a href="#gates">Alive is a checklist, not a score</a></li>
-      <li><a href="#ladder">Spending compute in tiers</a></li>
-      <li><a href="#evolution">Novelty, not fitness</a></li>
-      <li><a href="#scheduler">The scheduler that cannot certify</a></li>
+      <li><a href="#plan">Nothing measures everything</a></li>
+      <li><a href="#metrics">Fifty-four numbers</a></li>
+      <li><a href="#blocks">Paying once for shared work</a></li>
+      <li><a href="#experiment">The metric that runs an experiment</a></li>
     </ol>
-    <div class="part">IV · The dial board</div>
+    <div class="part">IV · Judging and searching</div>
     <ol>
-      <li><a href="#tuning">One struct, one entry point</a></li>
-      <li><a href="#knobs">The knob registry</a></li>
-      <li><a href="#digest">Evidence that cannot mix</a></li>
+      <li><a href="#rollout">When to look</a></li>
+      <li><a href="#gates">A range, not a score</a></li>
+      <li><a href="#criteria">Two ways to want something</a></li>
+      <li><a href="#evolve">Three lanes and a way out</a></li>
     </ol>
-    <div class="part">V · Seeing and keeping</div>
+    <div class="part">V · Edges</div>
     <ol>
-      <li><a href="#render">The renderer invents nothing</a></li>
-      <li><a href="#checkpoints">A world you can own</a></li>
       <li><a href="#modules">Module map</a></li>
-    </ol>
-    <div class="part">VI · The verdict</div>
-    <ol>
-      <li><a href="#market">Who would buy this</a></li>
-      <li><a href="#moat">Defensibility</a></li>
-      <li><a href="#limits">Honest limits</a></li>
+      <li><a href="#limits">What the code does not contain</a></li>
     </ol>
   </aside>
 
@@ -306,13 +298,13 @@ footer .meta{margin-top:30px;padding-top:20px;border-top:1px solid rgba(243,236,
 
   <header class="hero">
     <div class="grid-bg"></div>
-    <p class="kicker">A search for worlds that stay alive</p>
-    <h1>Physics, searched until <em>something lives</em>.</h1>
-    <p class="lede"><b>AXIOM</b> looks for rules. It runs three-dimensional Particle-Lenia on a periodic torus, measures whether the result holds structure, moves, and heals itself after damage, and keeps only the ones that behave unlike anything already found. The worlds it keeps are not sampled from a trained model. They are simulated, and they can be saved, restored, and continued exactly.</p>
+    <p class="kicker">A search over interaction laws</p>
+    <h1>Most rules make static. <em>Some do not.</em></h1>
+    <p class="lede"><b>AXIOM</b> is a library. A rule is a flat list of floats; the engine turns one into a running Particle-Lenia simulation, the tuner reduces that simulation to a bounded row of numbers and judges it, and the search breeds the rules whose numbers came back interesting. Nothing here is sampled from a trained model, and nothing here is drawn.</p>
     <div class="stats">
-      <div class="stat"><div class="n">53</div><div class="t">descriptor axes, all from true torus geometry</div></div>
-      <div class="stat"><div class="n">43</div><div class="t">named knobs behind one entry point</div></div>
-      <div class="stat"><div class="n">0</div><div class="t">certified worlds so far</div></div>
+      <div class="stat"><div class="n">54</div><div class="t">descriptor slots when every metric runs</div></div>
+      <div class="stat"><div class="n">10</div><div class="t">metrics, each owning its own file</div></div>
+      <div class="stat"><div class="n">20</div><div class="t">behavioral tests, all outside <code>src/</code></div></div>
     </div>
   </header>
 
@@ -328,540 +320,460 @@ footer .meta{margin-top:30px;padding-top:20px;border-top:1px solid rgba(243,236,
 
   <div class="part-head" id="part1">
     <div class="pn">PART I</div>
-    <h2>The bet</h2>
-    <p class="sub">What the system is, the wager underneath it, and the boundary it refuses to cross.</p>
+    <h2>The object</h2>
+    <p class="sub">What is actually in the repository, how it is split, and what a candidate looks like.</p>
   </div>
 
   <section class="block" id="what">
-    <h3>What it is</h3>
-    <p class="plain lead">AXIOM is a search system. It does not make one world; it hunts through the space of possible physical rules for the rare ones that produce something worth looking at. A candidate rule is run as a simulation, measured against a fixed checklist, and kept only if it is both alive by that checklist and unlike everything already in the archive. Most candidates fail. That is the point of searching.</p>
+    <h3>What the crate is</h3>
+    <p class="plain lead">One Rust library with four modules and no binaries. It does not open a file, print anything, or draw anything. A search is assembled in code, run inside the calling process, and handed back as a ranked list of survivors that exists for exactly as long as the caller holds it.</p>
 
     <details class="layer analogy">
-      <summary><span class="badge">Analogy</span><span class="stitle">Tuning a radio in a universe of stations</span><span class="chev">›</span></summary>
+      <summary><span class="badge">Analogy</span><span class="stitle">A wind tunnel, not an aircraft</span><span class="chev">›</span></summary>
       <div class="body">
-        <p>Imagine a radio with forty dials instead of one, tuned not to stations but to laws of physics. Almost every setting gives static: particles fly apart, or clump into a dead ball, or freeze. Somewhere in that space are settings where the static organizes into something that holds together, moves, and knits itself back after you tear a hole in it.</p>
-        <p>AXIOM turns the dials automatically, listens to each setting for a while, and writes down the ones that are not static. It does not know what it is looking for beyond a short checklist of what counts as alive. It is explicitly rewarded for finding settings unlike the ones it already has.</p>
+        <p>This is equipment for finding out whether a shape flies. You bolt a candidate in, run the fan, and read the instruments. It does not take off, it does not carry passengers, and it has no cockpit.</p>
+        <p>Everything the repository contains is the tunnel and the instruments: a simulator, a set of gauges, a rule for rejecting a candidate mid-run, and a breeding loop that proposes the next batch of shapes.</p>
       </div>
     </details>
 
     <details class="layer technical">
-      <summary><span class="badge">Technical</span><span class="stitle">Genome in, archive out</span><span class="chev">›</span></summary>
+      <summary><span class="badge">Technical</span><span class="stitle">Four modules</span><span class="chev">›</span></summary>
       <div class="body">
-        <p>A candidate is a bounded <code>Vec&lt;f32&gt;</code>. <code>engine</code> decodes it into a world and steps it deterministically. <code>tuner</code> measures the result as a 53-axis descriptor, applies a binary viability gate, and admits survivors into a novelty archive with deterministic capacity pruning.</p>
-        <p>The dependency runs one way. <code>engine</code> imports nothing from <code>tuner</code> or <code>viewer</code>, so the simulation cannot acquire a dependency on how it is searched or drawn. Anchor count and dimensionality are read from the data rather than fixed by a constant.</p>
+        <p><code>engine</code> is a simulation as a pure function of a genome. <code>run</code> takes one genome in and hands one descriptor out. <code>tuner</code> measures, gates, scores, and searches. <code>util</code> holds the seeded xorshift, Euclidean distance, and the non-finite guard.</p>
+        <p>A caller builds a <code>Search</code>, calls <code>run</code>, and gets a <code>Vec&lt;Specimen&gt;</code> sorted best score first. Each <code>Specimen</code> carries its genome, its descriptor, and its score. Nothing is serialized, so a search cannot be stopped and continued.</p>
       </div>
     </details>
   </section>
 
-  <section class="block" id="why">
-    <h3>Why simulate instead of generate</h3>
-    <p class="plain lead">The dominant way to make a room full of living-looking imagery is to train a large model on photographs of nature and sample from it. AXIOM does the opposite: it runs actual physics and searches for rules whose behavior happens to look alive. This costs far more compute and is far less certain to produce something beautiful. The wager is that a simulated world has properties a sampled one cannot fake.</p>
-
-    <div class="cols2">
-      <div class="casecard bull">
-        <h5>What simulation buys</h5>
-        <ul>
-          <li>It persists. Structure at step 100,000 was produced by the same law as step one.</li>
-          <li>It repairs. Tear a hole and the organization closes it, or fails the gate.</li>
-          <li>It is reproducible. A genome and a seed give the same world, bit for bit.</li>
-          <li>It trains on nothing. There is no corpus and no provenance question.</li>
-        </ul>
-      </div>
-      <div class="casecard bear">
-        <h5>What it may not buy</h5>
-        <ul>
-          <li>Nobody has asked for physically-grounded worlds.</li>
-          <li>A visitor in a room may not perceive the difference at all.</li>
-          <li>Generated imagery is cheaper, faster, and already shipping.</li>
-          <li>No certified AXIOM world exists yet to test any of this.</li>
-        </ul>
-      </div>
-    </div>
-
-    <details class="layer analogy">
-      <summary><span class="badge">Analogy</span><span class="stitle">A photograph of a reef, or a reef</span><span class="chev">›</span></summary>
-      <div class="body">
-        <p>A model trained on four billion photographs of coral can produce an image indistinguishable from coral. But you cannot swim through it, you cannot cut it and watch it heal, and if you ask what it will look like in an hour, the honest answer is that there is no it. There is only the next sample.</p>
-        <p>A simulated reef is worse-looking and more real. It has a state. It has a future determined by its own rules. Whether anyone standing in the room cares is the entire commercial question, and it is unanswered.</p>
-      </div>
-    </details>
-  </section>
-
-  <section class="block" id="boundary">
-    <h3>The product boundary</h3>
-    <p class="plain lead">Several choices are fixed and not up for search. The world is three-dimensional, because the product is something you fly through. It is a torus, so it has no walls and structures wrap around every face. Its size is derived from density rather than set freely. And the renderer is forbidden from adding motion the simulation did not produce.</p>
+  <section class="block" id="halves">
+    <h3>Two halves and a hinge</h3>
+    <p class="plain lead">The simulator and the search never speak to each other directly. The simulator does not know it is being measured, and the search never builds a simulation. One small module in the middle owns that meeting, which is the only place the two touch.</p>
 
     <div class="tablewrap">
       <table>
-        <thead><tr><th>Invariant</th><th>Consequence</th></tr></thead>
+        <thead><tr><th>Module</th><th>May not</th></tr></thead>
         <tbody>
-          <tr><td>Particle dynamics</td><td>Cost follows particle count, not dense voxel count.</td></tr>
-          <tr><td>Three spatial dimensions</td><td>Search effort goes into worlds the product can display and inhabit.</td></tr>
-          <tr><td>Periodic torus</td><td>No terminal boundary; structures cross every face.</td></tr>
-          <tr><td>Derived extent</td><td>Coordination controls density; extent is never a free scale.</td></tr>
-          <tr><td>Closed-form derivatives</td><td>No autodiff or tensor dependency in the simulator.</td></tr>
-          <tr><td>Binary viability</td><td>A gate decides whether a candidate is living. It never ranks survivors.</td></tr>
-          <tr><td>Causal rendering</td><td>Geometry, color, motion, and emission derive from particle state.</td></tr>
+          <tr><td class="mono">engine</td><td>import from <code>tuner</code> or <code>run</code></td></tr>
+          <tr><td class="mono">tuner</td><td>open a file, print, or build a simulation</td></tr>
+          <tr><td class="mono">run</td><td>decide <em>what</em> to measure; it decides only when to look</td></tr>
         </tbody>
       </table>
     </div>
 
-    <div class="callout">
-      <div class="h">The rule that keeps it honest</div>
-      <p>Pausing the simulation freezes every biological change in the image. There is no shader-time deformation, scrolling texture, animated noise, or camera-driven simulation change. A world that is only a gas renders as a gas.</p>
-    </div>
-  </section>
-
-  <div class="part-head" id="part2">
-    <div class="pn">PART II</div>
-    <h2>The world</h2>
-    <p class="sub">What a particle is, how particles decide to attract or repel, and how the box gets its size.</p>
-  </div>
-
-  <section class="block" id="particles">
-    <h3>Particles with a trait</h3>
-    <p class="plain lead">Every particle carries a position and one number between zero and one, its trait. The trait is like a species identity, except continuous: a particle can be halfway between two kinds. Traits are assigned when the world is seeded and never change during a run. Position is the only thing that moves.</p>
-
     <details class="layer analogy">
-      <summary><span class="badge">Analogy</span><span class="stitle">A dial, not a label</span><span class="chev">›</span></summary>
+      <summary><span class="badge">Analogy</span><span class="stitle">The patient does not read the chart</span><span class="chev">›</span></summary>
       <div class="body">
-        <p>Instead of sorting particles into a fixed number of species boxes, give each one a dial reading between 0 and 1. Two particles reading 0.31 and 0.34 are nearly the same kind. One reading 0.9 is something else entirely.</p>
-        <p>The system places a small number of anchor points along the dial and lets each particle belong partly to the two anchors it sits between. Sitting exactly on an anchor means belonging wholly to it, which is what makes this an exact generalization of the older discrete-species model rather than a replacement for it.</p>
-      </div>
-    </details>
-
-    <details class="layer technical">
-      <summary><span class="badge">Technical</span><span class="stitle">Piecewise-linear hats on a circle</span><span class="chev">›</span></summary>
-      <div class="body">
-        <p><code>M</code> anchors sit evenly spaced on a circle, so a trait wraps at the seam instead of clamping. Hat memberships satisfy <code>alpha_a(c) &gt;= 0</code> and <code>sum_a alpha_a(c) = 1</code>, with at most two adjacent anchors nonzero and exactly one-hot at an anchor.</p>
-        <p>Trait-distribution logits in the genome select the initial population density over trait bins. The decoder applies a small floor before normalization, then jitters deterministically inside each bin, so every evaluation seed gets the same trait histogram and a different reproducible spatial arrangement.</p>
-      </div>
-    </details>
-  </section>
-
-  <section class="block" id="net">
-    <h3>The pair control net</h3>
-    <p class="plain lead">Each ordered pair of anchors owns its own rule: how strongly a particle of one kind senses another at a given distance, how it responds to feeling crowded, and how hard it pushes. That is a full grid of relationships, so kind A can chase kind B while B ignores A entirely.</p>
-
-    <pre><code><span class="c">// what a particle senses from one source kind, then how it responds</span>
-U_ab(i)    = sum_(j != i) alpha_a(c_j) K_ab(d_ij)
-Uhat_ab(i) = U_ab(i) / norm_ab
-
-E_i = -sum_a sum_b alpha_b(c_i) w_ab G_ab(Uhat_ab(i))</code></pre>
-
-    <details class="layer analogy">
-      <summary><span class="badge">Analogy</span><span class="stitle">A seating chart with grudges</span><span class="chev">›</span></summary>
-      <div class="body">
-        <p>Think of a dinner party where every guest has an opinion about every other kind of guest, and the opinions are not mutual. Some want to sit close, some want a specific distance, some want to be near a crowd of one kind but away from another.</p>
-        <p>The kernel is how far away you can notice someone. The growth curve is your preferred crowding level, so being too alone or too packed both push you to move. The weight is how much you care. Every ordered pair gets its own set of all three.</p>
-      </div>
-    </details>
-
-    <details class="layer technical">
-      <summary><span class="badge">Technical</span><span class="stitle">Gaussian mixtures and the truncation</span><span class="chev">›</span></summary>
-      <div class="body">
-        <p>Kernels and growth curves are bounded Gaussian mixtures. Only <code>G'</code> enters movement; the value is kept readable on its own. A zero amplitude disables a component, so the search learns the active count rather than being told it.</p>
-        <p>Kernel reach stays below <code>0.375 * extent</code> and every sigma has a positive lower bound. The neighbour loop truncates each shell at <code>mu + 3.5 sigma</code>, about 0.2 percent of peak, and skips negligible-amplitude terms so one inert term cannot inflate the search radius. This is an explicit approximation: the executed force carries a small hard cutoff and is not the exact gradient of the untruncated energy there.</p>
-        <p>A pair's position in the net <em>is</em> its <code>(source, destination)</code> identity, so neither the interaction nor its callers carry those indices separately.</p>
-      </div>
-    </details>
-  </section>
-
-  <section class="block" id="geometry">
-    <h3>Density decides the box</h3>
-    <p class="plain lead">The size of the world is not a free choice. The genome asks for a target crowding, and the box size follows from that plus the particle count and interaction radius. Doubling the particles at the same crowding gives a bigger world with the same local texture, rather than a denser one.</p>
-
-    <details class="layer technical">
-      <summary><span class="badge">Technical</span><span class="stitle">One probe, reused</span><span class="chev">›</span></summary>
-      <div class="body">
-        <p>A density probe measures the nominal coordination of a uniform population at a trial extent, then a genome's coordination gene rescales that reference by the dimensional root. The probe depends only on particle count, dimensionality, and radius, so a campaign measures it once and threads the result through every candidate rather than re-measuring per genome.</p>
-        <p>Interaction norms are calibrated separately, on a deterministic uniform seed with uniform anchor traits so every anchor pair sees reference mass, using the same torus distance, softening, and memberships as the real rollout. A clumped live state never becomes the density reference.</p>
+        <p>A drug trial goes wrong the moment the treatment knows which measurements are being taken, because it starts optimizing for the measurement rather than the outcome. Keeping the two apart is what makes the reading mean anything.</p>
+        <p>Here it is enforced by the import graph rather than by discipline. The simulator cannot consult the scoring function even by accident, because it cannot see it.</p>
       </div>
     </details>
   </section>
 
   <section class="block" id="genome">
-    <h3>One flat genome</h3>
-    <p class="plain lead">Everything the search can change about a world's law lives in a single flat list of numbers. That keeps the mutation operators simple: they treat the genome as an anonymous vector and never need to know what any gene means.</p>
+    <h3>One flat vector</h3>
+    <p class="plain lead">Everything a search can change about a rule lives in a single flat list of floats. The mutation operators treat it as an anonymous vector and never need to know what any one number means. The shape of that list, how many anchors and how many mixture components, rides alongside in a second structure the search holds still.</p>
 
     <pre><code>[ coordination ]
-[ trait-distribution logits ]
-[ M² pair blocks in source-major order ]
+[ anchor_count trait logits ]
+[ anchor_count² pair blocks, source-major ]
 
 pair block =
-  shells × [kernel beta, mu, sigma]
-  bumps  × [growth beta, mu, sigma]
+  shells × [amp, peak, width]   <span class="c">// sensed over distance</span>
+  bumps  × [amp, peak, width]   <span class="c">// response over sensed density</span>
   [directed weight]</code></pre>
 
     <details class="layer technical">
-      <summary><span class="badge">Technical</span><span class="stitle">Shape rides with the genes</span><span class="chev">›</span></summary>
+      <summary><span class="badge">Technical</span><span class="stitle">Why the bounds are taken at the widest box</span><span class="chev">›</span></summary>
       <div class="body">
-        <p>Anchor count and the shell and bump caps ride beside the genes in the shared parameter set, and the pair-block stride follows from those counts. Anchor count and dimensionality are read from the data, never fixed by a constant, so the step loop takes its shape from whatever genome it is handed.</p>
+        <p>Legal ranges for the pair genes depend on the box size, which depends on the coordination gene, which is itself a gene. Bounds are therefore taken at maximum coordination, where the box and the usable kernel reach are widest, so any genome a search can produce stays inside them.</p>
+        <p>A rollout then re-clamps the pair genes at the box its own coordination gene actually resolves to, where reach is tighter. Clamping replaces a non-finite gene with its lower bound, so one NaN cannot poison a decode instead of quietly propagating.</p>
+      </div>
+    </details>
+  </section>
+
+  <div class="part-head" id="part2">
+    <div class="pn">PART II</div>
+    <h2>The simulation</h2>
+    <p class="sub">What a particle is, how particles decide to move, and where the box gets its size.</p>
+  </div>
+
+  <section class="block" id="particles">
+    <h3>Particles with a trait</h3>
+    <p class="plain lead">Every particle carries a position and one number between zero and one, its trait. The trait is like a species identity, except continuous: a particle can sit halfway between two kinds. Traits are assigned when the population is seeded and never change. Position is the only thing that moves.</p>
+
+    <div class="callout cold">
+      <div class="h">On dimensionality</div>
+      <p>How many spatial axes a particle has is data, read from the parameter set. The substrate, the step, the distance function, and the density probe all take their shape from it. One thing does pin it down: the measurement grid indexes a cubic three-axis lattice, so a search refuses a genome shaped any other way. That constraint belongs to one metric block, not to the physics.</p>
+    </div>
+
+    <details class="layer analogy">
+      <summary><span class="badge">Analogy</span><span class="stitle">A dial, not a label</span><span class="chev">›</span></summary>
+      <div class="body">
+        <p>Instead of sorting particles into a fixed number of species boxes, give each one a dial reading between 0 and 1. Two particles reading 0.31 and 0.34 are nearly the same kind. One reading 0.9 is something else entirely.</p>
+        <p>The system places a few anchor points around the dial and lets each particle belong partly to the two it sits between. Sitting exactly on an anchor means belonging wholly to it, which is what makes this an exact generalization of a discrete-species model rather than a replacement for it.</p>
+      </div>
+    </details>
+
+    <details class="layer technical">
+      <summary><span class="badge">Technical</span><span class="stitle">Hats on a circle, and exact seeding</span><span class="chev">›</span></summary>
+      <div class="body">
+        <p>Anchors sit evenly spaced on a circle, so the trait axis wraps at the <code>0/1</code> seam instead of clamping. Memberships satisfy <code>alpha_a(c) &gt;= 0</code> and <code>sum_a alpha_a(c) = 1</code>, with at most two adjacent anchors nonzero and exactly one-hot at an anchor.</p>
+        <p>Seeding matches the population to the genome's logits exactly rather than sampling toward them. Each bin's exact share is floored to an integer, leftover particles go to the bins with the largest fractional remainder with ties broken by index, and each quota is filled with traits drawn uniformly inside that bin's slice.</p>
+      </div>
+    </details>
+  </section>
+
+  <section class="block" id="matrix">
+    <h3>Every ordered pair, its own law</h3>
+    <p class="plain lead">For each ordered pair of anchors there is a separate rule: how strongly one kind senses another at a given distance, how it responds to feeling that much company, and how hard it acts on the result. Because the pairs are ordered, one kind can chase another that ignores it back.</p>
+
+    <details class="layer analogy">
+      <summary><span class="badge">Analogy</span><span class="stitle">A seating chart with grudges</span><span class="chev">›</span></summary>
+      <div class="body">
+        <p>Think of a dinner party where every guest has an opinion about every other kind of guest, and the opinions are not mutual. Some want to sit close, some want a specific distance, some want to be near a crowd of one kind and away from another.</p>
+        <p>The shells are how far away you notice someone. The bumps are your preferred crowding, so being too alone and being too packed both push you to move. The weight is how much you care. Every ordered pair gets its own set of all three.</p>
+      </div>
+    </details>
+
+    <details class="layer technical">
+      <summary><span class="badge">Technical</span><span class="stitle">Mixtures, truncation, and measured norms</span><span class="chev">›</span></summary>
+      <div class="body">
+        <p>Both mixtures are Gaussian, and one function returns value and slope in the same loop so the gradient reuses each term. A zero amplitude disables a component, which lets a search learn the active count instead of being told it.</p>
+        <p>Reach stays below <code>0.375</code> of the box so a shell cannot wrap into itself. Each shell truncates at <code>peak + 3.5 × width</code>, roughly 0.2 percent of its peak, and terms with negligible amplitude are skipped so one inert term cannot inflate the radius and erase the saving. This is an explicit approximation: the executed force carries a small hard cutoff there.</p>
+        <p>Each pair's normalizing constant is measured, not assumed, on a fixed uniform reference population seeded with uniform anchor logits. Seeding that reference with zeroed traits instead would leave every pair except <code>(0, 0)</code> with no mass, silently taking a fallback of <code>1.0</code>. A test asserts off-diagonal pairs get real measured values.</p>
+      </div>
+    </details>
+  </section>
+
+  <section class="block" id="step">
+    <h3>What one step does</h3>
+    <p class="plain lead">For every particle, walk its neighbors, and for each anchor pair involved accumulate two things: how much company it is sensing, and which direction that company is coming from. Then turn the sensed amount into a push along that direction, take one small step, and wrap back into the box.</p>
+
+    <pre><code><span class="c">// per neighbor: at most four pairs are live, because each side has at most two anchors</span>
+potential[pair] += source_weight × K(d)
+gradient[pair]  += source_weight × K'(d) / d × direction
+
+<span class="c">// then, per pair: convert sensed density into motion</span>
+step += 2 × dt × receiver_weight × weight × B'(potential / norm) / norm × gradient</code></pre>
+
+    <details class="layer technical">
+      <summary><span class="badge">Technical</span><span class="stitle">The factor of two, and the two loops</span><span class="chev">›</span></summary>
+      <div class="body">
+        <p>The <code>2</code> is the surviving term of <code>G = 2B - 1</code> under differentiation. Only the slope enters movement, so the <code>-1</code> dies and the factor stays.</p>
+        <p>Accumulation runs only over pairs where both memberships are nonzero, at most four per neighbor. Conversion then runs over <em>every</em> possible source against the receiver's active anchors, because a source anchor with no local mass still has a defined response at zero sensed density.</p>
+        <p>Distance is minimum-image with softening added last, after the per-axis squares, matching the accumulation order callers depend on. The square root is taken lazily, at most once per neighbor, and skipped entirely when the squared distance is already past the pair's squared reach. The integration is explicit Euler, wrapped with <code>rem_euclid</code>.</p>
+      </div>
+    </details>
+  </section>
+
+  <section class="block" id="box">
+    <h3>Density decides the box</h3>
+    <p class="plain lead">The size of the box is not a free choice. The genome asks for a target number of neighbors per particle, and the box size follows from that plus the particle count and the interaction radius. Doubling the particles at the same crowding gives a bigger box with the same local texture rather than a denser one.</p>
+
+    <details class="layer technical">
+      <summary><span class="badge">Technical</span><span class="stitle">One probe, measured once, reused</span><span class="chev">›</span></summary>
+      <div class="body">
+        <p>The probe measures the mean potential a particle senses in a uniform population at a trial box of six radii, using a shell shaped by radius alone rather than any one genome's actual law, so every candidate in a search measures against the same reference. It caps at 1,500 particles and rescales by the true density ratio, which bounds the <code>O(n²)</code> cost.</p>
+        <p>A genome's coordination gene then rescales that reference by the dimensional root. Because the probe depends only on particle count, dimensionality, and radius, and none of those vary per run, a search builds one and threads it through every candidate rather than re-measuring.</p>
       </div>
     </details>
   </section>
 
   <div class="part-head" id="part3">
     <div class="pn">PART III</div>
-    <h2>The search</h2>
-    <p class="sub">How a world gets measured, judged, and either thrown away or promoted.</p>
+    <h2>Measuring</h2>
+    <p class="sub">How a running simulation becomes a row of numbers, and what those numbers had to survive to be trusted.</p>
   </div>
 
-  <section class="block" id="descriptor">
-    <h3>Describing a world in 53 numbers</h3>
-    <p class="plain lead">To compare worlds, the system reduces each one to a fixed list of 53 measurements: how matter is spaced at different distances, whether different regions look different from each other, whether material and empty space each form connected paths through the world, and how much things move and turn over.</p>
+  <section class="block" id="plan">
+    <h3>Nothing measures everything</h3>
+    <p class="plain lead">There is no fixed list of measurements taken every time. The scoring function names what it scores on, the rejection rules name what they judge, and the union of those two, plus whatever they depend on, is exactly what gets computed. Everything else is not paid for.</p>
+
+    <details class="layer analogy">
+      <summary><span class="badge">Analogy</span><span class="stitle">The lab only runs the tests you ordered</span><span class="chev">›</span></summary>
+      <div class="body">
+        <p>A blood panel is not one fixed sheet of every assay that exists. You order what the question needs, the lab adds anything an ordered test depends on, and you are billed for that set.</p>
+        <p>The consequence worth knowing: a descriptor is a bare row of numbers with no labels on it. Reading one entry needs the row <em>and</em> the order sheet that produced it. Hand it the wrong sheet and you read the wrong number.</p>
+      </div>
+    </details>
+
+    <details class="layer technical">
+      <summary><span class="badge">Technical</span><span class="stitle">Closing the set in one pass</span><span class="chev">›</span></summary>
+      <div class="body">
+        <p>Each metric is a <code>&amp;'static Spec</code> written in its own file, declaring a stable key, its width in slots, which grids it reads, which metrics it depends on, how it reduces across samples, and which shared blocks it needs.</p>
+        <p><code>ALL</code> lists all ten in dependency order. <code>plan</code> walks it backwards once to close the wanted set over dependencies, then filters <code>ALL</code>, which yields dependencies ahead of dependents without ever sorting. A metric the plan skipped, and a descriptor from a simulation that died, both read empty rather than reading zero and looking like a measurement.</p>
+      </div>
+    </details>
+  </section>
+
+  <section class="block" id="metrics">
+    <h3>Fifty-four numbers</h3>
+    <p class="plain lead">When every metric runs, a simulation reduces to fifty-four values. Each one is squashed into the range zero to one, so no single raw statistic with a naturally wide range can dominate a comparison between two rules.</p>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Slots</th><th>Metric</th><th>Reading</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">18</td><td class="mono">rdf</td><td>three trait-distance bands by six log radial bins, against the uniform start</td></tr>
+          <tr><td class="mono">15</td><td class="mono">heterogeneity</td><td>five local readings each on grids of side 4, 8, and 16</td></tr>
+          <tr><td class="mono">8</td><td class="mono">topology</td><td>H0 death-scale mass, plus components still separate at the cutoff</td></tr>
+          <tr><td class="mono">4</td><td class="mono">connectivity</td><td>dense and void winding fractions at two density thresholds</td></tr>
+          <tr><td class="mono">4</td><td class="mono">temporal</td><td>how much the picture moved, and how much it still resembles itself</td></tr>
+          <tr><td class="mono">1</td><td class="mono">structure</td><td>mean departure of the radial ratios from uniform</td></tr>
+          <tr><td class="mono">1</td><td class="mono">mobility</td><td>how far particles travelled, as a fraction of the box</td></tr>
+          <tr><td class="mono">1</td><td class="mono">turnover</td><td>how much grid mass changed cells</td></tr>
+          <tr><td class="mono">1</td><td class="mono">asymmetry</td><td>how far the weight matrix sits from its own transpose</td></tr>
+          <tr><td class="mono">1</td><td class="mono">robustness</td><td>share of injected damage that closed</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p><code>asymmetry</code> is the odd one out: every other metric reads the simulation, and that one reads the law that produced it, so a search can tell a mutual attraction from a chase.</p>
+
+    <details class="layer analogy">
+      <summary><span class="badge">Analogy</span><span class="stitle">Two corrections that stop the numbers lying</span><span class="chev">›</span></summary>
+      <div class="body">
+        <p>Scatter rice uniformly on a tiled floor and count grains per tile. On big tiles the counts look even. On small tiles some tiles get three grains and some get none, and a naive reading calls that structure. It is not structure, it is the arithmetic of small samples.</p>
+        <p>The heterogeneity metric subtracts exactly what randomness would have contributed, twice: once for the density counts, once for the trait mixtures inside each cell. Without those subtractions a uniformly mixed population reads as though it had grown distinct regions, purely because the grid was fine.</p>
+      </div>
+    </details>
+
+    <details class="layer technical">
+      <summary><span class="badge">Technical</span><span class="stitle">Winding, spanning forests, and reading yourself</span><span class="chev">›</span></summary>
+      <div class="body">
+        <p><b>Connectivity</b> blurs density with a separable three-tap kernel before any threshold, so one stray particle cannot register as a phase. It then flood-fills carrying an integer lift, the count of steps taken along each axis to reach a cell without wrapping. Arriving at a visited cell with a disagreeing lift means the two walks differ by a full loop, which detects a box-spanning phase using nothing but integers. A phase counts only if it fills at least 8 percent of the grid and one component carries such a loop, so a compact blob is disconnected here however many of its cells touch.</p>
+        <p><b>Topology</b> uses the fact that H0 death scales are exactly the edge weights of the Euclidean minimum spanning tree, so the whole cluster hierarchy costs one spanning forest. Edges stop at the kernel cutoff, deliberately: clumps no kernel can reach across are not one structure at any scale.</p>
+        <p><b>Temporal</b> is the only metric that reads other metrics. It pulls three slices out of each sampled descriptor, lays them end to end as that tick's picture, and asks how far the picture moved and how much it still resembles itself a few samples later. A lag correlation near 1 means it looks the same later, so a frozen crystal and a slow drift both read high. With too few samples it assumes static, which fails a variance floor rather than sneaking past one.</p>
+      </div>
+    </details>
+  </section>
+
+  <section class="block" id="blocks">
+    <h3>Paying once for shared work</h3>
+    <p class="plain lead">Several metrics want the same expensive intermediate: the same grid, the same table of pairwise distances, the same neighbor graph. Those are built once per sampled moment, from the union of what was ordered, and handed to everyone who asked. No metric builds its own.</p>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Block</th><th>Contents</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">pair histogram</td><td>unordered pair counts per trait band and log radial bin</td></tr>
+          <tr><td class="mono">spatial field</td><td>one per requested grid side: density, trait sums, trait bins per cell</td></tr>
+          <tr><td class="mono">barcode</td><td>H0 death scales from the cutoff-limited spanning forest</td></tr>
+          <tr><td class="mono">motion</td><td>the previous sample's positions, plus its finest grid</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout">
+      <div class="h">Asking for what you did not order</div>
+      <p>Reaching for a block the plan never requested panics. A metric that quietly returned zero instead would produce a plausible number that means nothing, and a search would happily optimize it.</p>
+    </div>
+
+    <details class="layer technical">
+      <summary><span class="badge">Technical</span><span class="stitle">Two details that are not decoration</span><span class="chev">›</span></summary>
+      <div class="body">
+        <p>Grid sides are deduplicated before building, so two metrics wanting one resolution cost one grid.</p>
+        <p>The pair histogram accumulates in <code>f64</code>. A thousand-particle simulation contributes half a million pairs, and <code>f32</code> starts dropping counts at that magnitude. The pair walk is deliberately all-pairs rather than grid-accelerated, because its far bins reach the box half-diagonal, well past any kernel cutoff the neighbor grid could exploit.</p>
+      </div>
+    </details>
+  </section>
+
+  <section class="block" id="experiment">
+    <h3>The metric that runs an experiment</h3>
+    <p class="plain lead">Nine of the ten metrics watch. One intervenes. It copies the simulation, shakes one neighborhood of particles out of place, runs both the damaged copy and an untouched control forward, and asks how far the damaged one got back toward where the control ended up.</p>
 
     <div class="statgrid">
-      <div class="s"><div class="n">18</div><div class="t">trait-conditioned radial structure</div></div>
-      <div class="s"><div class="n">15</div><div class="t">local heterogeneity at three grid scales</div></div>
-      <div class="s"><div class="n">12</div><div class="t">topology: H0 mass and winding</div></div>
-      <div class="s"><div class="n">8</div><div class="t">dynamics, asymmetry, repair</div></div>
+      <div class="s"><div class="n">3</div><div class="t">probes per reading</div></div>
+      <div class="s"><div class="n">100</div><div class="t">steps of relaxation each</div></div>
+      <div class="s"><div class="n cold">once</div><div class="t">per rollout, not per sample</div></div>
     </div>
 
     <details class="layer analogy">
-      <summary><span class="badge">Analogy</span><span class="stitle">A blood panel for a world</span><span class="chev">›</span></summary>
+      <summary><span class="badge">Analogy</span><span class="stitle">Compare against where it was going, not where it was</span><span class="chev">›</span></summary>
       <div class="body">
-        <p>You cannot compare two patients by looking at them. You draw blood and read the same fixed panel of numbers for everyone, so any two results are comparable and any change is measurable.</p>
-        <p>The descriptor is that panel. The critical entries are the ones that catch a world faking it: whether different neighbourhoods genuinely differ, and whether you could actually travel from one side of the world to the other through material, or through empty space.</p>
+        <p>To test whether a wound heals you do not compare the patient against a photograph taken before the injury. Everyone changes over an hour, injured or not. You compare against what the same patient would have looked like an hour later, uninjured.</p>
+        <p>That is why an untouched control is run forward alongside the damaged copy. Comparing against the present state instead would bill ordinary drift as unhealed damage, and every rule that simply moves would score as fragile.</p>
       </div>
     </details>
 
     <details class="layer technical">
-      <summary><span class="badge">Technical</span><span class="stitle">Why the corrections matter</span><span class="chev">›</span></summary>
+      <summary><span class="badge">Technical</span><span class="stitle">A share, not a count, and no recursion</span><span class="chev">›</span></summary>
       <div class="body">
-        <p>Heterogeneity uses shot-noise-corrected statistics at grid sides 4, 8, and 16: density overdispersion after subtracting Poisson variance, void probability, occupancy-weighted trait variance with a finite-population correction, corrected local trait entropy, and axial autocorrelation. Without those corrections, sparse fine-grid cells make random trait mixtures look like biomes.</p>
-        <p>Topology uses a cutoff-limited minimum spanning forest for H0 mass, plus dense and void winding fractions. A phase contributes only if it occupies at least 8 percent of the grid <em>and</em> one component contains a non-contractible loop around a torus axis. A compact blob is therefore disconnected for product purposes even when all its cells touch.</p>
-        <p>Descriptor geometry is fixed at compile time and is deliberately not tunable. Changing a bin count creates a new descriptor version rather than a run setting.</p>
-      </div>
-    </details>
-  </section>
-
-  <section class="block" id="gates">
-    <h3>Alive is a checklist, not a score</h3>
-    <p class="plain lead">There is no fitness number. A world either passes a short list of named conditions or it fails, and the failure is named. This keeps the search from quietly optimizing one number at the expense of everything interesting.</p>
-
-    <div class="tablewrap">
-      <table>
-        <thead><tr><th>Clause</th><th>Rejection</th><th>Meaning</th></tr></thead>
-        <tbody>
-          <tr><td>finite state and descriptor</td><td class="no">Dead</td><td>Integration diverged or produced invalid values.</td></tr>
-          <tr><td>departure from uniform baseline</td><td class="no">Dispersed</td><td>The world remained a gas.</td></tr>
-          <tr><td>upper structure bound</td><td class="no">Collapsed</td><td>Matter imploded into the shortest scale.</td></tr>
-          <tr><td>mobility and temporal variation</td><td class="no">Frozen</td><td>Structure exists without ongoing change.</td></tr>
-          <tr><td>recovery after local shocks</td><td class="no">Fragile</td><td>The organization does not restore itself.</td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <p>Promotion tiers add three more: local heterogeneity, connected material, and connected void. Every threshold is a tuning field rather than a constant, so a campaign can decide what counts as living, but not mid-run.</p>
-
-    <details class="layer analogy">
-      <summary><span class="badge">Analogy</span><span class="stitle">A pass/fail physical, with the reason written down</span><span class="chev">›</span></summary>
-      <div class="body">
-        <p>A doctor does not give you an overall health score out of 100 and let a high cholesterol reading be offset by good hearing. They check specific things, and if one fails, they tell you which one.</p>
-        <p>The <em>Fragile</em> check is the interesting one. The system deliberately damages the world, shakes a region of particles out of place, and runs it forward against an undamaged copy of itself. Closing the gap counts as repair. That is expensive: it roughly doubles the cost of every completed evaluation.</p>
-      </div>
-    </details>
-  </section>
-
-  <section class="block" id="ladder">
-    <h3>Spending compute in tiers</h3>
-    <p class="plain lead">Everything starts cheap. A candidate gets a short run on one seed. Only survivors earn a longer run on more seeds, and only those survivors earn the very long one. A run chooses which tiers to spend on and how long each is, but cannot weaken what a tier means.</p>
-
-    <div class="tablewrap">
-      <table>
-        <thead><tr><th>Tier</th><th>Main rollout</th><th>Seeds</th><th>Decision</th></tr></thead>
-        <tbody>
-          <tr><td>Discovery</td><td class="mono">1,500+ steps</td><td class="mono">1</td><td>Pass the five base clauses.</td></tr>
-          <tr><td>Persistence</td><td class="mono">10,000+ steps</td><td class="mono">3</td><td>At least two seeds pass base and world clauses.</td></tr>
-          <tr><td>Certification</td><td class="mono">100,000+ steps</td><td class="mono">5</td><td>At least four seeds pass the aggregate gates.</td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <div class="callout cold">
-      <div class="h">The number is not the cost</div>
-      <p>A seed that reaches its end also runs one undamaged control and three damaged continuations, each a quarter of the main horizon. A completed seed costs about twice the tabled step count. Early failure reduces it.</p>
-    </div>
-  </section>
-
-  <section class="block" id="evolution">
-    <h3>Novelty, not fitness</h3>
-    <p class="plain lead">Parents are chosen for being unusual, not for being good. A world that scores well on nothing in particular but sits in an unexplored corner of the descriptor space is a better parent than a slightly better copy of something already found.</p>
-
-    <ol class="steps">
-      <li><b>Freeze the archive snapshot.</b><p>Every measurement in the generation compares against one frozen reference, so results do not depend on evaluation order.</p></li>
-      <li><b>Choose parents.</b><p>By novelty tournament, goal expedition, or random restart.</p></li>
-      <li><b>Evaluate in parallel.</b><p>Batch order is preserved so results reproduce across thread counts.</p></li>
-      <li><b>Apply the binary gate.</b><p>Named failures are counted and reported per generation.</p></li>
-      <li class="flip"><b>Merge with deterministic pruning.</b><p>Crowding is recomputed on the combined set, so capacity enforcement has no insertion-order dependence.</p></li>
-    </ol>
-
-    <details class="layer technical">
-      <summary><span class="badge">Technical</span><span class="stitle">Lanes, lineage, and the stall shift</span><span class="chev">›</span></summary>
-      <div class="body">
-        <p>Batch allocation splits between novelty-led offspring, goal expeditions, and fresh random genomes. Random takes whatever the first two do not claim, so the three always sum to the batch at any size and a random escape route survives even in tiny test batches.</p>
-        <p>An expedition samples every descriptor coordinate uniformly, picks the nearest archived behavior, and mutates it. In 53 dimensions most uniform targets are far from the realized manifold, so this is honestly random goal direction rather than coverage-aware illumination.</p>
-        <p><code>lineage_id</code> identifies a founder family and <code>genome_hash</code> identifies an individual rule. That distinction keeps close relatives inside one held-out learning partition. On a stall, the batch shifts toward expedition and random and both mutation terms scale up.</p>
-      </div>
-    </details>
-  </section>
-
-  <section class="block" id="scheduler">
-    <h3>The scheduler that cannot certify</h3>
-    <p class="plain lead">A small learned model predicts which short runs are worth continuing, so expensive evaluation goes where it is likely to pay off. It is deliberately powerless: it can spend compute, but it cannot admit a world to the archive, choose a parent, or certify anything.</p>
-
-    <details class="layer technical">
-      <summary><span class="badge">Technical</span><span class="stitle">Authority is earned and revocable</span><span class="chev">›</span></summary>
-      <div class="body">
-        <p>A deterministic bagged logistic ensemble over standardized features, no tensor runtime. Members train on lineage-grouped bootstraps; the ensemble mean estimates survival probability and member standard deviation estimates uncertainty.</p>
-        <p>It gains scheduling authority only when the untouched test set carries enough positive and negative founder families, its Brier score beats the training base-rate predictor by a margin, and top-fraction recall clears a floor. Continuation slots then split between predicted survival, ensemble uncertainty, and a uniform spread across descriptor neighbourhoods. That uniform quota keeps producing counterexamples and protects the dataset from selection bias. An unauthoritative model leaves selection to the deterministic fallback.</p>
+        <p>The score is a mean share of damage closed rather than a count of probes clearing a threshold. Counting gave a step function with four levels that sat on zero for most genomes, so anything multiplying by it lost its gradient entirely. A probe whose shake moved the signature by less than <code>0.01</code> is discarded as proving nothing; a copy that blows up closes nothing and is scored as such.</p>
+        <p>Damage is measured in the same space the search already thinks in: the signature is three other metrics, read through the same plan machinery the descriptor uses. Robustness is deliberately absent from that list, which is what keeps it from recursing into itself.</p>
+        <p>Its four constants are fixed rather than run settings. Changing any of them changes what a robustness reading <em>means</em>, so two runs that disagreed about them were never comparable in the first place.</p>
       </div>
     </details>
   </section>
 
   <div class="part-head" id="part4">
     <div class="pn">PART IV</div>
-    <h2>The dial board</h2>
-    <p class="sub">Every setting in one place, and the guard that keeps incomparable results apart.</p>
+    <h2>Judging and searching</h2>
+    <p class="sub">When to look, what disqualifies a candidate, what counts as good, and how the next batch is proposed.</p>
   </div>
 
-  <section class="block" id="tuning">
-    <h3>One struct, one entry point</h3>
-    <p class="plain lead">Everything a run can vary lives in a single <code>Tuning</code> value, and there is exactly one function that runs a campaign. Configuring an experiment means filling in one struct, not assembling five.</p>
+  <section class="block" id="rollout">
+    <h3>When to look</h3>
+    <p class="plain lead">A rollout does not measure continuously. It steps, and stops to look eight times, spread across the second half of the run. Anything that has blown up is abandoned on the spot, and anything failing its checks twice in a row is abandoned before it finishes.</p>
 
-    <div class="tablewrap">
-      <table>
-        <thead><tr><th>Group</th><th>Contents</th></tr></thead>
-        <tbody>
-          <tr><td class="mono">world</td><td>particles, dimensions, anchors, radius, rate, evaluation seed, shell and bump caps</td></tr>
-          <tr><td class="mono">discovery</td><td>generations, steps, batch, bootstrap, capacity, seed, promotion budget, stall window, mutation scales, lane shares, curated pins</td></tr>
-          <tr><td class="mono">gates</td><td>six viability thresholds, mobility floor, two watchdog thresholds, sustained-window count</td></tr>
-          <tr><td class="mono">repair</td><td>probe count, shake, recovery fraction, minimum effective damage</td></tr>
-          <tr><td class="mono">tiers</td><td>persistence and certification step budgets, each optional</td></tr>
-          <tr><td class="mono">learning</td><td>minimum labeled rows, model seed, continuation quotas, logistic hyperparameters</td></tr>
-        </tbody>
-      </table>
+    <ol class="steps">
+      <li><b>Decode and resolve.</b><p>Split the flat vector, derive the box from the coordination gene, re-clamp the pair genes at that box.</p></li>
+      <li><b>Take a baseline.</b><p>The uniform starting cloud is the reference every structural reading compares against.</p></li>
+      <li><b>Step and sample.</b><p>Eight samples at a fixed interval across the latter half. A non-finite coordinate ends it immediately.</p></li>
+      <li class="flip"><b>Check as you go.</b><p>From the second sample on. Two consecutive failures end the rollout early.</p></li>
+      <li><b>Fold.</b><p>Averaged metrics average, history-reading metrics take the last sample.</p></li>
+    </ol>
+
+    <div class="callout cold">
+      <div class="h">Why patience is two, not one</div>
+      <p>A simulation can dip out of a band and climb back within a single sample. Abandoning on the first failure would throw away rules that recover, which are exactly the interesting ones. An abandoned rollout returns an empty descriptor, which reads zero everywhere and so clears no check that carries a floor.</p>
     </div>
   </section>
 
-  <section class="block" id="knobs">
-    <h3>The knob registry</h3>
-    <p class="plain lead">The 43 settings are declared once, in a table. That one declaration produces the command-line parser, the help text, and the header written into every archive file. A setting cannot exist without documentation, and it cannot drift out of sync with its own help.</p>
-
-    <pre><code>$ train --help
-
-  particles         = 1200    particles per rollout
-  robustness_floor  = 0.66    reject below this repair fraction
-  mutation_iso      = 0.01    isotropic mutation scale
-  lane_novelty      = 0.7     novelty share of a generation
-  persistence_steps = 0       persistence rollout steps, 0 to disable
-  <span class="c">... 38 more</span></code></pre>
+  <section class="block" id="gates">
+    <h3>A range, not a score</h3>
+    <p class="plain lead">A gate is a floor and a ceiling on one measurement, read in that measurement's own units. It answers whether a candidate is worth ranking at all. It never ranks. Gates are supplied by the caller when the search is built rather than baked in as constants.</p>
 
     <details class="layer analogy">
-      <summary><span class="badge">Analogy</span><span class="stitle">The label is printed from the same die as the dial</span><span class="chev">›</span></summary>
+      <summary><span class="badge">Analogy</span><span class="stitle">A height limit, not a beauty contest</span><span class="chev">›</span></summary>
       <div class="body">
-        <p>On a badly made instrument the panel is silkscreened separately from the wiring, so eventually a knob does something other than what its label says. On a well-made one the label and the connection come from the same source, and a mislabeled knob is not possible.</p>
-        <p>Adding a setting here touches one line and reaches the parser, the help, and the saved file at once.</p>
+        <p>The sign at the ride entrance does not rank riders. It admits or refuses, and being far above the line buys nothing. Judging quality is a separate job done by someone else, on the people who got in.</p>
+        <p>Keeping the two separate is why no scoring function in this codebase reads a threshold, and why no gate returns a number.</p>
+      </div>
+    </details>
+
+    <details class="layer technical">
+      <summary><span class="badge">Technical</span><span class="stitle">Partial readings</span><span class="chev">›</span></summary>
+      <div class="body">
+        <p>A check taken mid-rollout skips any gate whose metric only lands on the final sample, since that metric has not been measured yet and its slots are still zero. The final check judges everything.</p>
+        <p>A dead simulation reads zero across the board, so any gate carrying a floor rejects it without needing a special case for death.</p>
       </div>
     </details>
   </section>
 
-  <section class="block" id="digest">
-    <h3>Evidence that cannot mix</h3>
-    <p class="plain lead">Settings come in two kinds. Some change how much searching happens; those are free to vary between runs that share results. Others change what an evaluation <em>means</em>, and mixing results across them would be comparing different experiments. The system refuses that automatically.</p>
+  <section class="block" id="criteria">
+    <h3>Two ways to want something</h3>
+    <p class="plain lead">A scoring function produces one number and names what it needs measured. There are two, and they want opposite things: one rewards being unlike everything found so far, the other rewards hitting a specific description of interesting.</p>
 
     <div class="cols2">
       <div class="casecard bull">
-        <h5>Free to vary</h5>
+        <h5>Novelty</h5>
         <ul>
-          <li>search seed</li>
-          <li>batch size</li>
-          <li>generations</li>
-          <li>archive capacity</li>
-          <li>promotion budget</li>
+          <li>Mean distance to the fifteen nearest behaviors already found.</li>
+          <li>Reads the whole descriptor, so it needs no layout.</li>
+          <li>No target, so it dodges the trivial attractors an absolute score falls into.</li>
+          <li>And equally: it never climbs toward a goal you had in mind.</li>
         </ul>
       </div>
       <div class="casecard bear">
-        <h5>Splits the evidence</h5>
+        <h5>Structure</h5>
         <ul>
-          <li>every gate threshold</li>
-          <li>mutation scales</li>
-          <li>lane shares</li>
-          <li>the repair protocol</li>
-          <li>the fixed world parameters</li>
+          <li>Five clauses: contrast, connected material, connected void, repair, turnover.</li>
+          <li>Absolute, so it can be climbed toward.</li>
+          <li>And equally: it can be fooled. A static lattice satisfies the contrast term outright.</li>
+          <li>Clauses multiply, so weakness anywhere costs everywhere.</li>
         </ul>
       </div>
     </div>
 
-    <p class="pull">Resuming a campaign under different gates is refused before a single rollout runs, rather than silently producing a ledger that mixes two experiments.</p>
+    <details class="layer analogy">
+      <summary><span class="badge">Analogy</span><span class="stitle">The floor under the product</span><span class="chev">›</span></summary>
+      <div class="body">
+        <p>Multiplying five requirements together says all five must hold, which is what you want. But multiplied raw, one zero makes the whole thing zero, and then a candidate scoring zero on one clause is indistinguishable from a candidate scoring zero on all five.</p>
+        <p>That is not a hypothetical. Nearly every candidate scored exactly zero, the tie-break in the parent tournament fell to whichever was drawn first, and the search quietly degraded into random search while still reporting scores. Flooring each clause at <code>0.02</code> keeps the conjunction expensive, an order of magnitude, while leaving the other four rankable.</p>
+      </div>
+    </details>
 
     <details class="layer technical">
-      <summary><span class="badge">Technical</span><span class="stitle">A digest inside the identity</span><span class="chev">›</span></summary>
+      <summary><span class="badge">Technical</span><span class="stitle">Why the population is re-scored every generation</span><span class="chev">›</span></summary>
       <div class="body">
-        <p>Everything in the second column folds into <code>Tuning::digest</code>. <code>ExperimentIdentity</code> carries that digest alongside the simulator, descriptor, genome-layout, and feature-schema versions and the fixed world parameters. Campaign state binds to an identity on first use and rejects a mismatch with a named error.</p>
-        <p>The archive header goes further and writes every knob through the registry, so an archive file records the exact regime that produced and judged it. A reader can reproduce both the worlds and the verdict.</p>
+        <p>Novelty is population-relative, so every stored score goes stale the moment the population moves around it. The whole population is re-scored before anything is ranked or selected from. Each member is scored against a set that contains it, which biases everyone identically and therefore cannot change an ordering.</p>
+        <p>Novelty's list of metrics is not a dependency list. Novelty names no metric of its own; it wants a space to be far apart in, and the gates widen that space too, since distance reads the whole plan.</p>
+      </div>
+    </details>
+  </section>
+
+  <section class="block" id="evolve">
+    <h3>Three lanes and a way out</h3>
+    <p class="plain lead">Each generation proposes a batch of candidates from three sources: mutations of what is scoring well, mutations of whatever sits nearest a randomly chosen point in behavior space, and completely fresh draws. Fresh draws take whatever the first two do not claim, so a converged population always has an exit.</p>
+
+    <pre><code>child = a
+      + iso  × gene_range × Normal(0, I)   <span class="c">// per-gene noise, scaled to each gene's own range</span>
+      + line × Normal(0, 1) × (b - a)      <span class="c">// one shared step toward a second parent</span></code></pre>
+
+    <details class="layer analogy">
+      <summary><span class="badge">Analogy</span><span class="stitle">The baseline that has to be beaten</span><span class="chev">›</span></summary>
+      <div class="body">
+        <p>Zero out both named lanes and every candidate comes back a fresh uniform draw. The whole apparatus collapses into random search, on purpose, because that is the control condition.</p>
+        <p>If random matches evolution under some scoring function, that scoring function is not steering, and no amount of generations will fix it. Having the baseline reachable by setting two numbers to zero makes it cheap to check.</p>
+      </div>
+    </details>
+
+    <details class="layer technical">
+      <summary><span class="badge">Technical</span><span class="stitle">Expeditions, and why a converged batch cannot take over</span><span class="chev">›</span></summary>
+      <div class="body">
+        <p>An expedition throws a dart at a uniform point in descriptor space and mutates whichever member landed nearest it. In dozens of dimensions most uniform targets sit far from anything realized, so this is honestly a random goal direction rather than coverage-aware illumination. That is the intent: distant intentions without a model inventing state.</p>
+        <p>Retention sorts best score first and keeps a member only if it sits clear of everything already kept. The cutoff is a quarter of the population's <em>own</em> median nearest-neighbor spacing, a fraction rather than an absolute distance, so it holds whatever units and however many axes a descriptor turns out to have. A population of identical genomes has zero spacing and drops nothing, which is what lets an opening generation through.</p>
+        <p>Batches evaluate in parallel through an order-preserving filter, so a parallel batch judges identically to a serial one.</p>
       </div>
     </details>
   </section>
 
   <div class="part-head" id="part5">
     <div class="pn">PART V</div>
-    <h2>Seeing and keeping</h2>
-    <p class="sub">How particles become an image, and how a world becomes a durable thing.</p>
+    <h2>Edges</h2>
+    <p class="sub">Where the pieces live, and what is honestly absent.</p>
   </div>
-
-  <section class="block" id="render">
-    <h3>The renderer invents nothing</h3>
-    <p class="plain lead">Particles are smeared into a density field, and the visible material is that field: surfaces where density crosses a threshold, colour from the local trait mixture, glow from how fast density is changing. Every channel traces back to particle state. Nothing is added for looks.</p>
-
-    <pre><code>rho(q)      = sum_i phi(||q - x_i||_T / h)
-trait(q)    = sum_i phi_i c_i / max(rho(q), epsilon)
-activity(q) = |rho_t(q) - rho_(t-1)(q)|</code></pre>
-
-    <details class="layer analogy">
-      <summary><span class="badge">Analogy</span><span class="stitle">A photograph, not a painting</span><span class="chev">›</span></summary>
-      <div class="body">
-        <p>A photographer can choose exposure, lens, and where to stand. They cannot add a corridor that was not in the room. The renderer has the same freedom and the same limit: it decides how the material is lit and how thickly it reads, and nothing about what is there.</p>
-        <p>This is why the renderer cannot rescue the project. If the physics does not produce connected caverns, no shader will produce them either.</p>
-      </div>
-    </details>
-
-    <details class="layer technical">
-      <summary><span class="badge">Technical</span><span class="stitle">Two paths, one semantics</span><span class="chev">›</span></summary>
-      <div class="body">
-        <p>Particle sprites are the diagnostic ground truth and fallback; the periodic density material is the product view. The reference density backend runs on CPU at modest resolution and defines field semantics for tests. A GPU backend may replace field construction or ray integration when particle counts require it, provided sampled density and seam behaviour match within a declared tolerance.</p>
-        <p>Tests assert that opposite torus faces sample equal density with no visible seam, that pausing freezes the field and emission, and that a particle bridge becomes connected material while separated clusters retain a void.</p>
-      </div>
-    </details>
-  </section>
-
-  <section class="block" id="checkpoints">
-    <h3>A world you can own</h3>
-    <p class="plain lead">An archive entry records a rule. A checkpoint records a place: the exact positions and traits of every particle at a moment. Loading one restores that moment, and continuing from it produces the same future it would have had.</p>
-
-    <details class="layer technical">
-      <summary><span class="badge">Technical</span><span class="stitle">Immutable state, mutable manifest</span><span class="chev">›</span></summary>
-      <div class="body">
-        <p>State files are immutable. Saving writes a temporary sibling, flushes it, and publishes it without replacing an existing final name. The mutable manifest is written atomically only after its state file exists, so it can advance the latest checkpoint id safely.</p>
-        <p>Loading validates both records and installs the saved interaction norms directly rather than recalculating them, which avoids platform-dependent calibration drift. A round-trip preserves every particle bit, trait bit, tick, and genome gene, and a restored world continues bit-identically for 10,000 further steps.</p>
-        <p>A world compares against a recipe by comparing the genome it was built from. Decoding is deterministic, so genome equality answers the question exactly. Version mismatches fail closed; there is no migration path in either durable format.</p>
-      </div>
-    </details>
-  </section>
 
   <section class="block" id="modules">
     <h3>Module map</h3>
-    <p class="plain lead">Two halves and a hinge. The engine is a pure function of a genome. The tuner measures, judges, searches, and records. Neither knows about the viewer.</p>
+    <p class="plain lead">Eight files simulate, one file measures a genome end to end, and the rest measure, judge, and search. Each metric owns its own file and declares what it needs, so adding one does not touch the machinery that runs it.</p>
 
     <div class="tablewrap">
       <table>
         <thead><tr><th>Module</th><th>Responsibility</th></tr></thead>
         <tbody>
-          <tr><td class="mono">engine/substrate · trait · kernel</td><td>Storage with a private spatial index, anchor basis, Gaussian mixtures, periodic distance.</td></tr>
-          <tr><td class="mono">engine/params</td><td><code>Params</code>: the rollout parameter set every component shares, genome genes included.</td></tr>
-          <tr><td class="mono">engine/resolve</td><td>Derived box size from the measured density reference.</td></tr>
-          <tr><td class="mono">engine/matrix</td><td>The pair control net, derived and calibrated.</td></tr>
-          <tr><td class="mono">engine/sim · lenia</td><td>Authoritative run state; the force step.</td></tr>
-          <tr><td class="mono">util</td><td>Seeded randomness and the crate's one hash.</td></tr>
-          <tr><td class="mono">tuner/tuning</td><td><code>Tuning</code> and the knob registry.</td></tr>
-          <tr><td class="mono">tuner/metrics · persistence · viability</td><td>Descriptor v5, H0 barcodes, named binary clauses.</td></tr>
-          <tr><td class="mono">tuner/rollout · novelty · search</td><td>Tiered evaluation, descriptor distance, the generation transaction.</td></tr>
-          <tr><td class="mono">tuner/campaign · learning · checkpoint</td><td>The entry point, scheduling, durable snapshots.</td></tr>
-          <tr><td class="mono">tuner/archive</td><td>Self-describing discovery archive.</td></tr>
-          <tr><td class="mono">viewer/</td><td>Causal material renderer, diagnostics, archive browser.</td></tr>
+          <tr><td class="mono">engine/substrate · trait · kernel</td><td>Positions and the private spatial grid, the anchor basis, Gaussian mixtures with analytic slopes.</td></tr>
+          <tr><td class="mono">engine/params</td><td>The two genome halves: layout, decode, uniform draws, per-gene bounds, clamping.</td></tr>
+          <tr><td class="mono">engine/matrix · resolve</td><td>The pair-indexed law with measured norms; the density probe and the box it resolves.</td></tr>
+          <tr><td class="mono">engine/lenia · sim</td><td>One step; the authoritative run state.</td></tr>
+          <tr><td class="mono">run</td><td>One genome in, one descriptor out. The only place a simulation is built to be measured.</td></tr>
+          <tr><td class="mono">util</td><td>Deterministic xorshift, Euclidean distance, the non-finite guard.</td></tr>
+          <tr><td class="mono">tuner/metrics</td><td>The spec, the plan, the shared blocks, evaluation and folding.</td></tr>
+          <tr><td class="mono">tuner/metrics/*</td><td>Ten measurements plus the grid block, one per file.</td></tr>
+          <tr><td class="mono">tuner/gate · criterion</td><td>What a search demands; what it wants.</td></tr>
+          <tr><td class="mono">tuner/algorithms/evolve</td><td>Lanes, mutation, retention, the generation loop.</td></tr>
+          <tr><td class="mono">tuner/driver · specimen</td><td>The assembled search and the per-candidate path; a survivor.</td></tr>
         </tbody>
       </table>
-    </div>
-  </section>
-
-  <div class="part-head" id="part6">
-    <div class="pn">PART VI</div>
-    <h2>The verdict</h2>
-    <p class="sub">Who would buy this, what protects it, and what is honestly unproven.</p>
-  </div>
-
-  <section class="block" id="market">
-    <h3>Who would buy this</h3>
-    <p class="plain lead">The immersive-art category is real and growing. The market for a world-generation engine sold into it is not established. AXIOM is a research bet with an unproven aesthetic thesis, not a business with identified demand.</p>
-
-    <div class="statgrid">
-      <div class="s"><div class="n">$4.8B</div><div class="t">immersive art exhibitions, 2024, growing 14.2% annually</div></div>
-      <div class="s"><div class="n cold">~tens</div><div class="t">serious buyers for an engine, worldwide</div></div>
-      <div class="s"><div class="n cold">0</div><div class="t">venues asking for physically-grounded worlds</div></div>
-    </div>
-
-    <details class="layer analogy">
-      <summary><span class="badge">Analogy</span><span class="stitle">Selling engines in a town with twelve cars</span><span class="chev">›</span></summary>
-      <div class="body">
-        <p>The category numbers describe ticketing, fabrication, and venues. AXIOM does not sell any of those. It would sell an engine to organizations that already run immersive spaces, and there are perhaps tens of those worldwide, most already tooled.</p>
-        <p>Concentrated markets can still be excellent businesses when the product is genuinely differentiated. The problem is that AXIOM has not shown its differentiation in a way a buyer can see.</p>
-      </div>
-    </details>
-
-    <details class="layer technical">
-      <summary><span class="badge">Technical</span><span class="stitle">The competitive frame</span><span class="chev">›</span></summary>
-      <div class="body">
-        <p>The dominant commercial approach trains a generative model on scraped nature imagery. Refik Anadol's Large Nature Model, trained on roughly 4.5 billion images plus sounds and scent molecules, powers Dataland, which opened in Los Angeles on 20 June 2026 as a purpose-built museum of AI art.</p>
-        <p>The nearest research competitor is Flow-Lenia, whose mass conservation and localized parameters may simply suit continuous material better than particles do. Its published evidence is concentrated in two dimensions. That is a live substrate risk, not a footnote.</p>
-      </div>
-    </details>
-  </section>
-
-  <section class="block" id="moat">
-    <h3>Defensibility</h3>
-    <p class="plain lead">The bull and bear cases are not balanced. The bear case rests on observable facts. The bull case rests on a physics result that has not been demonstrated.</p>
-
-    <div class="cols2">
-      <div class="casecard bull">
-        <h5>Bull</h5>
-        <ul>
-          <li>No training corpus, so no consent or provenance question a venue's counsel must litigate.</li>
-          <li>Checkpoints make a world a named, ownable, re-exhibitable asset.</li>
-          <li>Novelty search over a 53-axis physical descriptor with tiered evidence is not assembled in a quarter.</li>
-          <li>The search machinery survives a substrate swap, so the investment is not all on Particle-Lenia.</li>
-        </ul>
-      </div>
-      <div class="casecard bear">
-        <h5>Bear</h5>
-        <ul>
-          <li>No observed demand for physically-grounded emergence.</li>
-          <li>The differentiator may be imperceptible to a visitor in a room.</li>
-          <li>The core capability is unproven: no certified world exists.</li>
-          <li>Room-scale real-time performance is unmeasured; the reference path is CPU.</li>
-          <li>Competitors have museums, brands, and institutional partnerships.</li>
-        </ul>
-      </div>
-    </div>
-
-    <div class="callout">
-      <div class="h">Go-to-market implication</div>
-      <p>Do not sell an engine. Produce one certified world, fly through it, and judge it blind. If it is beautiful, the artifact is the pitch. If it is not, the market question was never the binding constraint.</p>
     </div>
   </section>
 
   <section class="block" id="limits">
-    <h3>Honest limits</h3>
-    <p class="plain lead">The largest unknown is whether Particle-Lenia can produce a bicontinuous carrier phase with several persistent local regimes. The renderer can reveal connected matter already present in the particles. Search and physics must supply it, and so far they have not.</p>
+    <h3>What the code does not contain</h3>
+    <p class="plain lead">Read these as absences in the repository rather than as a roadmap. Some are deliberate scope, some are unfinished, and the document does not pretend to know which is which.</p>
 
     <div class="tablewrap">
       <table>
-        <thead><tr><th>Limit</th><th>Status</th></tr></thead>
+        <thead><tr><th>Absent</th><th>Consequence</th></tr></thead>
         <tbody>
-          <tr><td>A certified 100,000-step world</td><td class="no">None exists</td></tr>
-          <tr><td>Room-scale real-time rendering</td><td class="no">Unmeasured</td></tr>
-          <tr><td>Trait dynamics, birth, death, inheritance</td><td class="no">Outside the contract</td></tr>
-          <tr><td>Checkpoint browsing and a preset library</td><td class="no">Not built</td></tr>
-          <tr><td>Expedition targeting in 53 dimensions</td><td>Random goal direction, not illumination</td></tr>
-          <tr><td>The descriptor</td><td>Hand-designed; encodes a prior</td></tr>
-          <tr><td>Campaign resumption</td><td>Continues evidence, not a half-finished generation</td></tr>
+          <tr><td>Trait dynamics</td><td class="no">Traits are frozen for a rollout. No birth, death, or inheritance.</td></tr>
+          <tr><td>Serialization</td><td class="no">Nothing reaches disk, so a population dies with its process and a search cannot be continued.</td></tr>
+          <tr><td>An entry point</td><td class="no">No binary, no command line, and nothing that draws.</td></tr>
+          <tr><td>A second search family</td><td class="no">One algorithm, so no claim that it beats anything is supported here.</td></tr>
+          <tr><td>Dimension-general measurement</td><td>The grid pins a search to three axes even though the engine does not.</td></tr>
+          <tr><td>A stable integrator</td><td>Explicit Euler; divergence is caught after the fact, not prevented.</td></tr>
+          <tr><td>An exact force</td><td>The shell truncation puts a small hard cutoff in what is actually integrated.</td></tr>
+          <tr><td>A learned descriptor</td><td>The metric set is hand-designed and encodes a prior about what is worth noticing.</td></tr>
         </tbody>
       </table>
     </div>
 
+    <p class="pull">The structure criterion can be satisfied on its contrast term by a static lattice. Only turnover and repair stand against that, and both are floored rather than required.</p>
+
     <div class="callout cold">
-      <div class="h">On stale evidence</div>
-      <p>The recorded novelty-versus-random comparison predates descriptor and gate corrections. Its values do not count as evidence for the current search, and a fresh multi-seed ablation is required before any claim about search performance.</p>
+      <div class="h">What the tests do and do not establish</div>
+      <p>Twenty tests cover code-level behavior: memberships, seeding, the two neighbor walks agreeing, bit-reproducibility, plan ordering, gate rejection, the once-per-rollout schedule, and that the structure criterion can tell genomes apart. None of them is evidence that the search finds anything worth finding.</p>
     </div>
   </section>
 
@@ -871,13 +783,13 @@ activity(q) = |rho_t(q) - rho_(t-1)(q)|</code></pre>
 <footer>
   <div class="inner">
     <h3>AXIOM</h3>
-    <p>A search for persistent, explorable three-dimensional Particle-Lenia worlds. The product boundary is a periodic torus containing continuous material, open flight space, local regimes, and ongoing dynamics. Search, evaluation, checkpointing, and the viewer all target that boundary.</p>
+    <p>A library that searches Particle-Lenia interaction laws. The engine simulates a genome, the tuner reduces the result to a bounded descriptor and judges it, and the search breeds what scored well. Nothing here is drawn, stored, or sampled from a trained model.</p>
     <div class="docs">
-      <a href="README.md">README.md</a>
+      <a href="../README.md">README.md</a>
       <a href="TECHNICAL_SPEC.md">TECHNICAL_SPEC.md</a>
-      <a href="MARKET_ANALYSIS.md">MARKET_ANALYSIS.md</a>
+      <a href="STYLE.md">STYLE.md</a>
     </div>
-    <div class="meta">This document synthesizes the three. Where it and the code disagree, the code wins.</div>
+    <div class="meta">This document synthesizes the others. Where it and the code disagree, the code wins.</div>
   </div>
 </footer>
 
