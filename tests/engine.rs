@@ -1,16 +1,23 @@
 //! Engine behavior: the trait basis, the spatial index, seeding, and step determinism.
 
 use axiom::engine::kernel::distance_sq;
-use axiom::engine::params::Params;
+use axiom::engine::params::{FixedGenome, Genome};
+use axiom::engine::resolve::Probe;
 use axiom::engine::sim::Sim;
 use axiom::engine::substrate::Substrate;
 use axiom::engine::r#trait::{init_particle_traits, membership};
-use axiom::tuner::genome::Caps;
 
-fn small_params() -> Params {
-    let caps = Caps { particle_count: 60, radius: 2.0, anchor_count: 2, shells: 1, bumps: 1, ..Caps::default() };
-    let probe = caps.probe();
-    caps.params(&caps.default_genome(&probe), &probe)
+fn small_genome() -> FixedGenome {
+    FixedGenome { particle_count: 60, dimensions: 3, anchor_count: 2, shells: 1, bumps: 1,
+        radius: 2.0, dt: 0.05, seed: 7 }
+}
+/// A decoded genome and the box its coordination gene resolves to, which is what every engine
+/// entry point wants now that the two genome halves are separate.
+fn resolved(fixed: &FixedGenome) -> (Genome, f32) {
+    let probe = Probe::new(fixed);
+    let genome = fixed.decode(&Genome::build_random(&fixed.bounds(&probe), 3));
+    let box_len = probe.box_len(genome.coordination);
+    (genome, box_len)
 }
 
 #[test]
@@ -38,8 +45,9 @@ fn anchor_values_are_exactly_one_hot() {
 
 #[test]
 fn trait_seeding_matches_the_logit_histogram_exactly() {
-    let params = small_params();
-    let mut substrate = Substrate::build(&params);
+    let fixed = small_genome();
+    let (_, box_len) = resolved(&fixed);
+    let mut substrate = Substrate::build(&fixed, box_len);
     init_particle_traits(&mut substrate, &[0.0, 0.0, 0.0], 7); // three equal bins over 60 particles
     let mut counts = [0usize; 3];
     for &value in &substrate.traits {
@@ -50,8 +58,9 @@ fn trait_seeding_matches_the_logit_histogram_exactly() {
 
 #[test]
 fn grid_and_all_pairs_neighbor_walks_agree() {
-    let params = small_params();
-    let mut substrate = Substrate::build(&params);
+    let fixed = small_genome();
+    let (_, box_len) = resolved(&fixed);
+    let mut substrate = Substrate::build(&fixed, box_len);
     let cutoff = substrate.box_len / 5.0; // five cells per axis: the grid path is active
     let collect = |substrate: &Substrate| {
         let mut pairs = Vec::new();
@@ -77,8 +86,9 @@ fn grid_and_all_pairs_neighbor_walks_agree() {
 
 #[test]
 fn periodic_distance_uses_the_minimum_image() {
-    let params = small_params();
-    let mut substrate = Substrate::build(&params);
+    let fixed = small_genome();
+    let (_, box_len) = resolved(&fixed);
+    let mut substrate = Substrate::build(&fixed, box_len);
     let box_len = substrate.box_len;
     substrate.positions[..3].copy_from_slice(&[0.1, 0.0, 0.0]);
     substrate.positions[3..6].copy_from_slice(&[box_len - 0.1, 0.0, 0.0]);
@@ -88,9 +98,10 @@ fn periodic_distance_uses_the_minimum_image() {
 
 #[test]
 fn a_seeded_sim_is_bit_reproducible() {
-    let params = small_params();
-    let mut a = Sim::new(&params);
-    let mut b = Sim::new(&params);
+    let fixed = small_genome();
+    let (genome, box_len) = resolved(&fixed);
+    let mut a = Sim::new(&fixed, genome.clone(), box_len);
+    let mut b = Sim::new(&fixed, genome, box_len);
     a.run(50);
     b.run(50);
     let bits = |sim: &Sim| sim.substrate.positions.iter().map(|v| v.to_bits()).collect::<Vec<_>>();
@@ -100,8 +111,9 @@ fn a_seeded_sim_is_bit_reproducible() {
 
 #[test]
 fn every_anchor_pair_calibrates_a_real_norm() {
-    let params = small_params();
-    let sim = Sim::new(&params);
+    let fixed = small_genome();
+    let (genome, box_len) = resolved(&fixed);
+    let sim = Sim::new(&fixed, genome, box_len);
     for (pair, interaction) in sim.matrix.interactions.iter().enumerate() {
         assert!(interaction.norm.is_finite() && interaction.norm > 0.0, "pair {pair} norm {}", interaction.norm);
     }

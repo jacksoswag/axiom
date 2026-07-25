@@ -2,7 +2,7 @@
 //! calibrated against a uniform reference population. Pair position in Matrix is its (source, destination) 
 //! identity, so neither the interaction nor its callers check indices against each other.
 
-use crate::engine::params::Params;
+use crate::engine::params::{FixedGenome, Genome};
 use crate::engine::kernel::{strength_and_slope, distance_sq, distance_cutoff, Shell};
 use crate::engine::r#trait::memberships;
 use crate::engine::substrate::Substrate;
@@ -21,19 +21,19 @@ pub struct Matrix {
     pub interactions: Vec<AnchorInteraction>, // one entry per pair of anchors
 }
 impl Matrix {
-    /// Derive the matrix from a genome's pair-block genes, source-major over params.interactions.
-    pub fn derive(params: &Params) -> Matrix {
-        let stride = 3 * (params.shells+params.bumps) + 1; // indices in gene pair: 3/shell, 3/bump, 1 weight
-        let bump_start = params.shells * 3;
-        let pairs = (0..params.anchor_count * params.anchor_count).map(|pair| {
-            let genes = &params.interactions[pair * stride..][..stride];
-            let shells = Self::read_triplets(genes, 0, params.shells);
+    /// Derive the matrix from a genome's pair-block genes, source-major over genome.interactions.
+    pub fn derive(fg: &FixedGenome, g: &Genome) -> Matrix {
+        let stride = fg.pair_stride(); // indices in gene pair: 3/shell, 3/bump, 1 weight
+        let bump_start = fg.shells * 3;
+        let pairs = (0..fg.anchor_count * fg.anchor_count).map(|pair| {
+            let genes = &g.interactions[pair * stride..][..stride];
+            let shells = Self::read_triplets(genes, 0, fg.shells);
             let reach = distance_cutoff(&shells);
             AnchorInteraction {
-                bumps: Self::read_triplets(genes, bump_start, params.bumps),
-                weight: genes[bump_start + params.bumps * 3],
+                bumps: Self::read_triplets(genes, bump_start, fg.bumps),
+                weight: genes[bump_start + fg.bumps * 3],
                 norm: 1.0, shells, reach}}).collect();
-        Matrix { anchor_count: params.anchor_count, interactions: pairs }
+        Matrix { anchor_count: fg.anchor_count, interactions: pairs }
     }
     /// Measure each interaction's density norm on substrate: the mean weighted potential a
     /// receiver anchor senses from a source anchor, over every neighbor within kernel reach.

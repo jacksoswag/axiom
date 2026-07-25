@@ -2,7 +2,7 @@
 //! stored, together with the spatial index derived from their positions. The index is a cache,
 //! not authoritative state, and reflects positions as of the last rebuild_grid call
 
-use crate::engine::params::Params;
+use crate::engine::params::FixedGenome;
 use crate::util::Rng;
 
 pub struct Substrate {
@@ -23,16 +23,16 @@ struct Grid {
 }
 
 impl Substrate {
-    /// A substrate from params: positions seeded at random, traits stay zero until init_particle_traits runs
-    pub fn build(params: &Params) -> Substrate {
-        let (particles, dims, box_len) = (params.particle_count, params.dimensions, params.box_len);
+    /// A substrate from fixed_genome: positions seeded at random, traits stay zero until init_particle_traits runs
+    pub fn build(fg: &FixedGenome, box_len: f32) -> Substrate {
+        let (particles, dims, seed) = (fg.particle_count, fg.dimensions, fg.seed);
         let mut substrate = Substrate {
             positions: vec![0.0; particles * dims],
             traits: vec![0.0; particles],
             box_len, softening: box_len * 1e-3,
             dimensions: dims,
             grid: Grid::default()};
-        let mut rng = Rng::new(params.seed); // seed particles at random positions
+        let mut rng = Rng::new(seed); // seed particles at random positions
         for position in substrate.positions.iter_mut() { *position = rng.unit() * box_len; }
         substrate
     }

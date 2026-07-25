@@ -9,7 +9,7 @@ rayon = "1"
 eframe = { version = "0.35.0", optional = true }
 
 [features]
-default = ["viewer"]
+default = []
 viewer = ["dep:eframe"]
 
 [profile.release]
@@ -20,17 +20,5 @@ lto = "thin"
 name = "axiom"
 path = "src/lib.rs"
 
-[[bin]]
-name = "axiom"
-path = "src/main.rs"
-required-features = ["viewer"]
-
-# Headless. `cargo run --release --bin train --no-default-features` skips eframe entirely.
-[[bin]]
-name = "train"
-path = "src/train.rs"
-
-[[example]]
-name = "snapshot"
-path = "examples/snapshot.rs"
-required-features = ["viewer"]
+# No binaries: main.rs, train.rs and the viewer are gone, and nothing has been written to drive
+# the re-authored tuner yet. Re-declare a [[bin]] when there is a source file behind it.

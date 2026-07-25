@@ -1,6 +1,6 @@
-//! Runtime engine: what a simulation is and how it advances, a function of a flat Vec<f32> genome.
-//! Never imports from tuner or viewer, so the simulation cannot acquire a dependency on how it
-//! is searched or drawn. Anchor count and dimensionality are read from the data, not a constant.
+//! Runtime engine: the heart of the cellular automata simulation, a function of a flat Vec<f32> genome.
+//! Never imports from tuner or viewer, so the simulation cannot acquire a dependency on how it's searched 
+//! or drawn. Anchor count and dimensionality are read from the data, not a constant.
 
 pub mod matrix;
 pub mod kernel;

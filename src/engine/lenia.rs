@@ -16,13 +16,13 @@ pub fn step(substrate: &mut Substrate, matrix: &Matrix, dt: f32) {
     substrate.rebuild_grid(matrix.max_reach()); // re-bucket for this step's widest interaction radius
 
     let anchor_count = matrix.anchor_count;
-    let pairs = &matrix.interactions; // flat [anchors x anchors], source-major
+    let interactions = &matrix.interactions; // flat [anchors x anchors], source-major
     let memberships = memberships(&substrate.traits, anchor_count); // each particle's up-to-2 active anchors
-    let reach_squared: Vec<f32> = pairs.iter().map(|interaction| interaction.reach.powi(2)).collect(); // once, squared to skip sqrt on the cutoff check
+    let reach_squared: Vec<f32> = interactions.iter().map(|interaction| interaction.reach.powi(2)).collect(); // once, squared to skip sqrt on the cutoff check
 
     let mut delta = vec![0.0; substrate.positions.len()]; // this tick's position change, one slot per coordinate
     delta.par_chunks_mut(dims).enumerate().for_each_init( // one chunk of dims floats per particle, indexed
-        || (vec![0.0; pairs.len()], vec![0.0; pairs.len() * dims], vec![0.0; dims]), // fresh scratch per rayon thread
+        || (vec![0.0; interactions.len()], vec![0.0; interactions.len() * dims], vec![0.0; dims]), // fresh scratch per rayon thread
         |(potential, gradient, direction), (i, out)| { // potential, gradient, direction scratch
             potential.fill(0.0); gradient.fill(0.0); // clear scratch left by the last particle this thread did
             let i_pos = &substrate.positions[i * dims..(i + 1) * dims]; // this particle's own coordinates
@@ -44,7 +44,7 @@ pub fn step(substrate: &mut Substrate, matrix: &Matrix, dt: f32) {
                         let index = source_anchor * anchor_count + destination_anchor; // flatten to this pair's row
                         if distance_sq > reach_squared[index] { continue; } // squared compare skips the sqrt
                         if distance < 0.0 { distance = distance_sq.sqrt(); }
-                        let (kernel, kernel_prime) = strength_and_slope(distance, &pairs[index].shells); // K(d) and its slope
+                        let (kernel, kernel_prime) = strength_and_slope(distance, &interactions[index].shells); // K(d) and its slope
                         potential[index] += source_weight * kernel; // K(d), this pair's sensed density
                         let row = &mut gradient[index * dims..(index + 1) * dims]; // this pair's gradient accumulator
                         let scale = source_weight * kernel_prime / distance; // chain rule: dK/dx = K'(d) * d(distance)/dx
@@ -60,7 +60,7 @@ pub fn step(substrate: &mut Substrate, matrix: &Matrix, dt: f32) {
                 for &(destination_anchor, destination_weight) in &receiver.entries {
                     if destination_weight <= 0.0 { continue; }
                     let index = source_anchor * anchor_count + destination_anchor;
-                    let interaction = &pairs[index]; // this pair's behavior
+                    let interaction = &interactions[index]; // this pair's behavior
                     let (_, g_prime) = strength_and_slope(potential[index] / interaction.norm, &interaction.bumps); // B'(U/norm), bump mixture slope
                     let scale = 2.0 * dt * destination_weight * interaction.weight * g_prime / interaction.norm; // 2x: G = 2B-1 maps to [-1,1], the -1 dies in G'
                     let row = &gradient[index * dims..(index + 1) * dims]; // pair's accumulated direction
