@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>axiom</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<canvas id="canvas"></canvas>
+
+<header class="bar">
+  <span class="mark">axiom</span>
+  <span class="chip" id="link"><i class="dot"></i><span>connecting</span></span>
+  <span class="chip" id="clock">tick 0</span>
+  <span class="chip" id="census">0 particles</span>
+  <span class="chip" id="extent">box 0</span>
+  <span class="spacer"></span>
+  <span class="chip" id="hint">double click the world to fly</span>
+  <span class="chip" id="rate">0 fps</span>
+</header>
+
+<aside class="drawer" id="drawer">
+  <div class="scroll" id="sections"></div>
+</aside>
+<button class="handle left" id="drawer-handle" title="settings">settings</button>
+
+<aside class="rail" id="rail">
+  <div class="scroll">
+    <section class="block">
+      <h2>search <span class="tail" id="search-state">idle</span></h2>
+      <div class="lines" id="plan">nothing has been searched yet</div>
+      <div class="lines" id="tally"></div>
+      <table id="log">
+        <thead><tr><th>gen</th><th>kept</th><th>best</th><th>median</th><th>took</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+    <section class="block">
+      <h2>survivors <span id="survivor-count"></span><select id="run-pick" class="tail"></select></h2>
+      <div class="cards" id="specimens"></div>
+    </section>
+  </div>
+</aside>
+<button class="handle right" id="rail-handle" title="survivors">survivors</button>
+
+<footer class="dock">
+  <button id="play" class="wide">run</button>
+  <button id="step">+200</button>
+  <button id="reseed">reseed</button>
+  <span class="dock-knob"><label for="speed">speed</label><input type="range" id="speed" min="1" max="48" step="1" value="1"><b id="speed-read">1</b></span>
+  <span class="divider"></span>
+  <button id="start" class="primary wide">search</button>
+  <button id="stop">stop</button>
+  <div class="track" id="track"><i></i><span id="track-text">no search yet</span></div>
+</footer>
+
+<div class="toasts" id="toasts"></div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

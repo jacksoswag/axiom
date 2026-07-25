@@ -22,12 +22,21 @@ pub struct Probe {
     trial_box_len: f32,
     measured_coordination: f32,
     dimensions: usize,
+    particle_count: usize,
 }
 impl Probe {
     /// Runs the expensive O(n^2) reference measurement once per campaign.
     pub fn new(fixed_genome: &FixedGenome) -> Probe {
         let trial_box_len = fixed_genome.radius * TRIAL_BOX_RADII;
-        Probe { trial_box_len, measured_coordination: measure_coordination(fixed_genome, trial_box_len), dimensions: fixed_genome.dimensions }
+        Probe { trial_box_len, measured_coordination: measure_coordination(fixed_genome, trial_box_len),
+            dimensions: fixed_genome.dimensions, particle_count: fixed_genome.particle_count }
+    }
+    /// Whether a measurement already in hand still answers for this shape. Particle count, dimensions
+    /// and radius are the whole of what it depends on, so an edit to any other gene keeps it and a
+    /// world rebuild costs a sim rather than a sim plus a fresh reference population.
+    pub fn fits(&self, fixed_genome: &FixedGenome) -> bool {
+        self.particle_count == fixed_genome.particle_count && self.dimensions == fixed_genome.dimensions
+            && self.trial_box_len == fixed_genome.radius * TRIAL_BOX_RADII
     }
     /// Cheap per-run rescale: the box size that hits 'coordination' neighbors per particle.
     pub fn box_len(&self, coordination: f32) -> f32 {
@@ -44,7 +53,7 @@ fn measure_coordination(fixed_genome: &FixedGenome, trial_box_len: f32) -> f32 {
     let mut probe_genome = fixed_genome.clone();
     probe_genome.particle_count = probe_count; probe_genome.seed = CALIBRATION_SEED;
     let substrate = Substrate::build(&probe_genome, trial_box_len);
-    let nominal = [Shell { amp: 1.0, peak: fixed_genome.radius, width: fixed_genome.radius * 0.5 }];
+    let nominal = [Shell::new(1.0, fixed_genome.radius, fixed_genome.radius * 0.5)];
     let mut total_potential = 0.0f64;
     for i in 0..substrate.traits.len() {
         let position_i = substrate.pos(i);

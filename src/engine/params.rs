@@ -8,7 +8,7 @@ use crate::engine::resolve::{Probe, COORDINATION_BOUNDS};
 use crate::util::{finite, Rng};
 
 const TRAIT_LOGIT_BOUNDS: (f32, f32) = (-4.0, 4.0);
-const MAX_KERNEL_REACH: f32 = 0.375; // of the box, so a shell never wraps into itself
+const MAX_KERNEL_REACH: f32 = 0.375; // of the box, so a shell never wraps into itself; past box/3 grid_valid steps all pairs
 
 #[derive(Clone)]
 pub struct FixedGenome {

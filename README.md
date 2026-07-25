@@ -1,6 +1,6 @@
 # axiom
 
-AXIOM searches for Particle-Lenia interaction laws. A law is a flat vector of floats. The engine turns one into a running simulation, the tuner reduces that simulation to a bounded descriptor and judges it, and the search breeds the genomes whose behavior scored well.
+AXIOM searches for Particle-Lenia interaction laws. A law is a flat vector of floats. The engine turns one into a running simulation, the tuner reduces that simulation to a bounded descriptor and judges it, the search breeds the genomes whose behavior scored well, and the harness puts all of it behind one line-oriented protocol a frontend can drive.
 
 - [docs/TECHNICAL_SPEC.md](docs/TECHNICAL_SPEC.md) is the implementation contract.
 - [docs/MASTERDOC.html](docs/MASTERDOC.html) reads the same system at three depths.
@@ -8,16 +8,18 @@ AXIOM searches for Particle-Lenia interaction laws. A law is a flat vector of fl
 
 ## Shape of the crate
 
-One library, four modules, no binaries and no examples. Nothing here opens a file, prints, or draws. A search is assembled in Rust, run in process, and read back as a ranked `Vec<Specimen>` that lives only as long as the caller holds it.
+One library, four modules, one binary. The binary reads commands on stdin and writes JSON events on stdout, so a frontend is whatever chooses to speak to it. A caller who would rather skip the protocol assembles a `Search` in Rust and gets a ranked `Vec<Specimen>` back in process.
 
 | module | job |
 |---|---|
 | `engine` | a simulation, as a pure function of a genome |
-| `run` | one genome in, one descriptor out |
 | `tuner` | measure, gate, score, search |
+| `harness` | the protocol, the live world, and the rollout that turns one genome into one descriptor |
 | `util` | seeded randomness, Euclidean distance, the non-finite guard |
 
-The dependency runs one way. `engine` imports nothing from `tuner` or `run`, so the simulation cannot acquire a dependency on how it is searched. `tuner` builds no simulation, which is `run`'s job.
+`engine` imports nothing from `tuner` or `harness`, so the simulation cannot acquire a dependency on how it is searched or drawn. The other two lean on each other by design: `harness` drives a `Search`, and `tuner::driver` reaches back into `harness::rollout`, which is the one place a `Sim` is built to be measured. `tuner` builds no simulation of its own.
+
+Outside the crate, `ui/` is a Python relay and a browser page. The relay spawns the binary, fans its event lines out to every open page over server-sent events, and appends the lines a search produces to `ui/runs/*.jsonl`. The page holds no model of the world: every control sends a command line and every readout came from an event.
 
 ## The simulation
 
@@ -30,6 +32,8 @@ Traits map onto anchors evenly spaced on a circle by piecewise-linear hats. At m
 Every ordered anchor pair owns its own law: a mixture of Gaussian **shells** sensing over distance, a mixture of Gaussian **bumps** responding over sensed density, and one directed weight. Because the pairs are ordered, one anchor can chase another that ignores it back.
 
 A step accumulates, for each pair, what a particle senses and the gradient of that sensing, then converts it into motion with an explicit Euler step wrapped back onto the box. Value and slope come out of one function, so the gradient reuses each Gaussian term instead of recomputing it.
+
+Above 16,384 particles that step runs on the graphics card, and below it on the cores. Both walk the same neighbor index, which the CPU builds either way. The card is worth about four times the eight cores at a hundred and fifty thousand particles, and nothing but size decides: there is no flag to set and no build to pick. `AXIOM_GPU=0` forces the cores, which is how the two get compared. They agree to the precision `f32` has rather than exactly, because `exp()` on a card is its own approximation, so a replay is exact within a backend and close across them.
 
 ## The genome
 
@@ -74,13 +78,13 @@ Nothing measures everything by default. A criterion names what it scores on, the
 
 Every slot lands in `[0, 1]`, so no raw statistic with a wide range dominates a distance.
 
-Three metrics cost more than an observation. `rdf` walks every pair, deliberately: its far bins reach the box half-diagonal, past any cutoff the neighbor grid could exploit. `temporal` reads three other metrics back out of the descriptor being built, which is why a plan orders dependencies ahead of dependents. `robustness` runs an experiment rather than an observation, so it reduces once per rollout instead of once per sample.
+Three metrics cost more than an observation. `rdf` walks every pair among its sample, deliberately: its far bins reach the box half-diagonal, past any cutoff the neighbor grid could exploit. Every other block is linear in the swarm and that one is quadratic, so it stands on an evenly strided sample of at most 4,096 particles, which holds its cost flat above that size and leaves it exact below. `temporal` reads three other metrics back out of the descriptor being built, which is why a plan orders dependencies ahead of dependents. `robustness` runs an experiment rather than an observation, so it reduces once per rollout instead of once per sample.
 
 Shared work is built once per sampled tick from the union of what the plan asks for: the pair histogram, one spatial field per requested grid side, the neighbor barcode, and the previous sample's positions. Two metrics wanting one grid cost one grid. Asking for a block the plan never requested panics rather than inventing a reading.
 
 ## Rollout
 
-`run::sim` decides when to look, never what at.
+`harness::rollout::sim` decides when to look, never what at.
 
 1. Decode, resolve the box, re-clamp the pair genes at it.
 2. Step. A non-finite coordinate ends the rollout on the spot.
@@ -117,15 +121,42 @@ Mutation is iso plus line: per-gene noise scaled to each gene's own range, then 
 
 Retention sorts best score first and keeps a member only if it sits clear of everything already kept, at a quarter of the population's own median nearest-neighbor spacing. A fraction rather than an absolute distance, so it holds whatever units and however many axes a descriptor turns out to have. A converged batch therefore cannot fill the population with copies of one genome.
 
+## The harness
+
+One command per line in, one JSON event per line out. Commands are `verb key=value`, so nothing in the crate parses JSON; events are JSON, so a browser does not have to parse anything either. This is the only place the crate prints, spawns a thread, or holds a world that is still running.
+
+| command | effect |
+|---|---|
+| `catalog` | re-send everything a frontend needs before it can draw a control |
+| `shape` | any subset of the fixed genome, range-checked at this boundary |
+| `gene` / `genome` | edit genes by index, or replace the whole flat vector |
+| `run` / `pause` / `step` / `speed` / `reseed` | drive the live world |
+| `measure` | what to watch and how often, or one full reading on the spot |
+| `gates` | the whole gate set at once, as `metric=floor:ceiling` |
+| `frames` | stop or resume the position stream |
+| `search` | start or stop the one search a session runs at a time |
+| `quit` | end the session |
+
+Events come back as `catalog`, `layout`, `state`, `frame`, `sample`, `search`, `generation`, `specimen`, and `error`. The catalog is data rather than documentation: every metric with its cost and dependencies, every criterion, every evolve knob with its range, and every shape field. A frontend builds its own controls out of it, so a metric cannot appear in the crate and be invisible to the page.
+
+A running world is paced to a 40 ms interval and owes `speed` ticks per interval, so the knob is a rate rather than a batch size. A search takes every core, which is why starting one pauses the world.
+
 ## Run it
 
-There is no entry point of its own. Run the tests:
-
 ```bash
-cargo test
+cargo test                    # the fast in-process suite
+tests/run.sh --smk            # the same suite, with a dated report
+python3 ui/server.py          # the harness behind a browser on 127.0.0.1:8731
 ```
 
-Assemble a search in code:
+Drive the protocol directly, without the browser. Closing stdin finishes whatever was still owed, so a piped script runs to the end and exits on its own; `quit` returns on the spot instead, dropping any steps not yet taken.
+
+```bash
+printf 'frames off\nmeasure keys=connectivity,turnover every=50\nstep count=400\n' \
+  | cargo run --release
+```
+
+Assemble a search in code instead, skipping the protocol:
 
 ```rust
 use axiom::engine::params::FixedGenome;
@@ -146,14 +177,14 @@ let search = Search::new(
     1500,
     1,
 );
-let ranked = search.run(); // best first
+// watch sees each generation as it lands and answers whether to keep going
+let ranked = search.run(&mut |_generation, _population, _tally| true); // best first
 ```
 
 ## What the code does not contain
 
 - Traits do not change during a rollout. No trait motion, birth, death, or inheritance.
-- Nothing is written to disk. No serialization of any kind, so a search cannot be stopped and continued.
-- No binary, no command line, and nothing that draws.
+- The crate serializes nothing. A run survives only as the event lines the Python relay appended to disk, which hold genomes and descriptors and no simulation state, so a search cannot be stopped and continued.
 - One search algorithm and one absolute criterion, so no comparison against another search family exists in the crate.
 - Explicit Euler at a fixed timestep. Divergence is caught by a finiteness check, not prevented by the integrator.
 - Shells truncate at 3.5 widths past their peak, so the executed force carries a small hard cutoff and is not the exact gradient of the untruncated energy there.

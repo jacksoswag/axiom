@@ -12,8 +12,7 @@ const WIDTH: usize = 1 + LAGS.len();
 /// The axes one tick's picture is drawn on, declared once and read twice: depends makes the plan
 /// measure them ahead of this metric, and measure pulls the same three back out of the descriptor.
 const READS: [Metric; 3] = [rdf::METRIC, heterogeneity::METRIC, connectivity::METRIC];
-pub const SPEC: Spec = Spec { reduce: Reduce::Last, depends: &READS, ..Spec::of("temporal", WIDTH, measure) };
-pub const METRIC: Metric = &SPEC;
+pub const METRIC: Metric = &Spec { reduce: Reduce::Last, depends: &READS, ..Spec::of("temporal", WIDTH, measure) };
 
 /// Its axes sit in the descriptor already in shared units, so one tick's picture is their slices
 /// laid end to end and nothing needs rescaling before comparison.

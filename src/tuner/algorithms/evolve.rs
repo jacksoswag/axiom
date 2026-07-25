@@ -5,7 +5,7 @@
 //! reaches the sim only through the Search that owns it.
 
 use crate::engine::params::{clamp, Genome};
-use crate::tuner::driver::Search;
+use crate::tuner::driver::{Reject, Search, Tally};
 use crate::tuner::specimen::Specimen;
 use crate::util::{distance, Rng};
 use rayon::prelude::*;
@@ -21,15 +21,29 @@ pub struct Evolve {
 impl Evolve {
     /// One run to completion. Generation zero proposes against an empty population, which comes back
     /// as fresh draws, so the opening sample needs no special case.
-    pub fn explore(&self, search: &Search, rng: &mut Rng) -> Vec<Specimen> {
-        let mut population: Vec<Specimen> = Vec::new();
-        for _ in 0..=self.generations {
+    pub fn explore(&self, search: &Search, rng: &mut Rng,
+        watch: &mut impl FnMut(usize, &[Specimen], &Tally) -> bool) -> Vec<Specimen>
+    {
+        // Whatever the caller handed over gets measured first, so generation zero can improve on a world
+        // someone already chose instead of starting again from noise. Anything that fails its gates on
+        // the way in simply is not there, which is the same answer the search would give it later.
+        let mut population: Vec<Specimen> = search.seeds.iter()
+            .filter_map(|genes| search.run_genome(genes, &[]).ok()).collect();
+        for generation in 0..=self.generations {
             rescore(search, &mut population);
             let genomes = propose(self.mutation, &population, &search.bounds, self.batch, rng);
-            let evaluated: Vec<Specimen> = genomes.into_par_iter()
-                .filter_map(|genome| search.run_genome(&genome, &population))
+            let judged: Vec<Result<Specimen, Reject>> = genomes.into_par_iter()
+                .map(|genome| search.run_genome(&genome, &population))
                 .collect(); // order-preserving, so a parallel batch judges identically to a serial one
+            let mut tally = Tally { evaluated: judged.len(), ..Tally::default() };
+            let evaluated: Vec<Specimen> = judged.into_iter().filter_map(|outcome| match outcome {
+                Ok(specimen) => Some(specimen),
+                Err(Reject::Died) => { tally.died += 1; None }
+                Err(Reject::Gated) => { tally.gated += 1; None }
+                Err(Reject::Unscorable) => { tally.unscorable += 1; None }
+            }).collect();
             population = retain(population, evaluated, self.capacity);
+            if !watch(generation, &population, &tally) { break; } // a caller that stops keeps what was found
         }
         population
     }
@@ -38,12 +52,15 @@ impl Evolve {
 /// A population-relative criterion leaves every stored score stale the moment the population moves
 /// around it, so the whole population is re-scored before anything is ranked or picked from. Each
 /// member is scored against a set that contains it; the bias is identical for everyone, so it can
-/// never change an ordering.
+/// never change an ordering. An absolute criterion has nothing to redo and does not walk the list.
 fn rescore(search: &Search, population: &mut [Specimen]) {
-    let reference = population.to_vec();
-    for member in population.iter_mut() {
-        member.score = search.criterion.score(&member.metrics, &search.metrics, &reference);
-    }
+    if !search.criterion.relative() { return; }
+    // Scores land in a list first so the population can be read whole while it is being scored
+    // against, which is what the old copy of it bought.
+    let reference: &[Specimen] = population;
+    let scores: Vec<f32> = reference.iter()
+        .map(|member| search.criterion.score(&member.metrics, &search.metrics, reference)).collect();
+    for (member, score) in population.iter_mut().zip(scores) { member.score = score; }
 }
 
 /// Zero both lanes and every slot comes back a fresh uniform draw, which is the random-search
@@ -109,10 +126,10 @@ fn best_of_two(population: &[Specimen], rng: &mut Rng) -> usize {
 fn nearest_target(population: &[Specimen], rng: &mut Rng) -> usize {
     let width = population[0].metrics.len();
     let target: Vec<f32> = (0..width).map(|_| rng.range(0.0, 1.0)).collect();
-    (0..population.len()).min_by(|&left, &right| {
-        distance(&population[left].metrics, &target)
-            .total_cmp(&distance(&population[right].metrics, &target))
-    }).unwrap_or(0)
+    // One distance per member. Comparing on the fly re-measures both sides of every comparison, which
+    // is two passes over the descriptor space for an answer one pass already has.
+    population.iter().enumerate().map(|(index, member)| (distance(&member.metrics, &target), index))
+        .min_by(|left, right| left.0.total_cmp(&right.0)).map_or(0, |(_, index)| index)
 }
 
 /// Fold an evaluated generation into the population that survives it. Best score first, and a
@@ -141,7 +158,8 @@ fn retain(population: Vec<Specimen>, evaluated: Vec<Specimen>, capacity: usize) 
 const CROWDING: f32 = 0.25;
 
 /// Median distance from a member to its closest neighbor: the natural scale of this population's
-/// descriptor space.
+/// descriptor space. Quadratic in the population and serial between two parallel batches, which is
+/// invisible at the capacity ceiling of 512 and would not stay that way if the ceiling moved.
 fn median_spacing(population: &[Specimen]) -> f32 {
     let mut spacing: Vec<f32> = population.iter().enumerate().map(|(index, member)| {
         population.iter().enumerate().filter(|(other, _)| *other != index)

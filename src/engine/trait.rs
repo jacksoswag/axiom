@@ -36,18 +36,16 @@ pub fn init_particle_traits(substrate: &mut Substrate, logits: &[f32], seed: u64
             index += 1;
         }
     }
+    // Memberships are a pure function of the traits, so they are rebuilt exactly here and wherever
+    // traits are copied. Nothing after this moves a particle between anchors, and the step loop
+    // reads them a few million times a tick.
+    substrate.memberships = memberships(&substrate.traits, logits.len());
 }
 
-/// Active memberships in a fixed anchor basis.
-#[derive(Clone, Copy)] // Copy: weight(self) takes it by value
-pub struct Membership { pub entries: [(usize, f32); 2] }
-
-impl Membership {
-    /// Particle's membership weight for an anchor, or 0.0 if the anchor isn't the 2 active entries.
-    pub fn weight(self, anchor: usize) -> f32 {
-        self.entries.iter().find_map(|&(index, weight)| (index == anchor).then_some(weight)).unwrap_or(0.0)
-    }
-}
+/// Active memberships in a fixed anchor basis. u32 anchors rather than usize: two of these ride the
+/// step loop's innermost read, and half the cache line is half the misses.
+#[derive(Clone, Copy)]
+pub struct Membership { pub entries: [(u32, f32); 2] }
 
 /// Piecewise-linear hat memberships over anchors evenly spaced on a circle.
 pub fn membership(trait_value: f32, anchor_count: usize) -> Membership {
@@ -55,7 +53,7 @@ pub fn membership(trait_value: f32, anchor_count: usize) -> Membership {
     let lower = (scaled.floor() as usize) % anchor_count;
     let upper = (lower + 1) % anchor_count;
     let upper_weight = scaled - scaled.floor();
-    Membership { entries: [(lower, 1.0 - upper_weight), (upper, upper_weight)] }
+    Membership { entries: [(lower as u32, 1.0 - upper_weight), (upper as u32, upper_weight)] }
 }
 
 /// Every particle's membership, in trait order. Shared by callers that walk the whole population.

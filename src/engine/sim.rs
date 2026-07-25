@@ -14,15 +14,17 @@ pub struct Sim {
     pub fixed_genome: FixedGenome,
     pub genome: Genome,
     pub tick: u64,
+    pub threaded: bool, // spread each tick over the cores, for the one sim that has them to itself
 }
 impl Sim {
-    /// A fresh Sim, ready to run.
+    /// A fresh Sim, ready to run. Single-threaded stepping by default, since the common case is one
+    /// of a batch of sims already filling every core; a lone sim raises threaded and takes them.
     pub fn new(fixed_genome: &FixedGenome, genome: Genome, box_len: f32) -> Sim {
         let mut substrate = Substrate::build(fixed_genome, box_len);
         init_particle_traits(&mut substrate, &genome.trait_distribution, fixed_genome.seed);
         let mut matrix = Matrix::derive(fixed_genome, &genome);
         matrix.norm_densities(&mut calibration_substrate(fixed_genome.clone(), box_len));
-        Sim { substrate, matrix, fixed_genome: fixed_genome.clone(), genome, tick: 0 }
+        Sim { substrate, matrix, fixed_genome: fixed_genome.clone(), genome, tick: 0, threaded: false }
     }
     /// Advance ticks steps (headless, as fast as possible)
     pub fn run(&mut self, ticks: u64) {
@@ -30,7 +32,7 @@ impl Sim {
     }
     /// Runs one Lenia step
     pub fn step(&mut self) {
-        step(&mut self.substrate, &self.matrix, self.fixed_genome.dt);
+        step(&mut self.substrate, &self.matrix, self.fixed_genome.dt, self.threaded);
         self.tick = self.tick.wrapping_add(1);
     }
 }

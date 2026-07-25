@@ -1,6 +1,6 @@
 # AXIOM technical specification
 
-AXIOM is a Rust library that searches Particle-Lenia interaction laws. A law is a bounded flat `Vec<f32>`. The engine decodes one into a simulation and steps it, `run` reduces a stepped simulation to a descriptor, and the tuner gates, scores, and breeds those descriptors.
+AXIOM is a Rust crate that searches Particle-Lenia interaction laws. A law is a bounded flat `Vec<f32>`. The engine decodes one into a simulation and steps it, `harness::rollout` reduces a stepped simulation to a descriptor, the tuner gates, scores, and breeds those descriptors, and the harness puts the whole of it behind a line protocol on stdin and stdout.
 
 This document describes the code in this repository. Where the two disagree, the code is right and this document is stale.
 
@@ -10,8 +10,9 @@ These are enforced by the code, not by convention.
 
 | Invariant | Where it lives | Consequence |
 |---|---|---|
-| One-way dependency | `engine` imports nothing from `tuner` or `run` | The simulation cannot acquire a dependency on how it is searched. |
-| The tuner touches no simulation | `tuner` builds no `Sim`; `run` is the only place one is constructed to be measured | Every criterion reads behavior the same way. |
+| The engine is downstream of nothing | `engine` imports only `engine` and `util` | The simulation cannot acquire a dependency on how it is searched or drawn. |
+| The tuner touches no simulation | `tuner` builds no `Sim`; `harness::rollout` is the only place one is constructed to be measured | Every criterion reads behavior the same way. |
+| One trust boundary | `harness::protocol` is the only place an outside caller's numbers are checked | Past it, an out-of-range value panics rather than being re-validated at three layers. |
 | Dimensionality is data | `FixedGenome::dimensions`, read by substrate, step, distance, probe | No constant fixes how many axes a particle has. |
 | The measurement grid is three-axis | `field::GRID_AXES`, checked in `Search::new` | A search rejects a genome shaped any other way, at the one door into a search. |
 | Periodic bounds | minimum-image distance, `rem_euclid` on every wrap | Structures cross every face and there is no terminal boundary. |
@@ -39,7 +40,17 @@ Position is the only dynamical state. Traits are assigned at seeding and never m
 
 The grid holds one cell per interaction cutoff, stored compressed: a particle list sorted by cell, plus cell edges in list space. A neighbor walk visits the home cell and all `3^dims` surrounding cells; callers still distance-check, since the walk yields candidates rather than neighbors.
 
-The grid deactivates below three cells per axis, where the stencil wraps onto itself and would visit a particle twice, and above `2^21` cells, where allocation stops paying. Both fall back to an all-pairs walk yielding the same candidate set. A test asserts the two walks agree on a seeded fixture.
+The grid deactivates below three cells per axis, where the stencil wraps onto itself and would visit a particle twice, and above `2^24` cells, where allocation stops paying. Both fall back to an all-pairs walk yielding the same candidate set. A test asserts the two walks agree on a seeded fixture.
+
+Cell count is also capped at roughly four cells per particle. A legal small-reach genome would otherwise ask for a million cells to hold three hundred particles, where clearing and scanning the map costs more per tick than every pair it prunes. The cap stays correct because a cell wider than the cutoff is still covered by the same three-wide stencil; it only prunes a little less. That cap is what binds in practice, and the `2^24` ceiling sits above it so that a swarm approaching a million particles still indexes rather than falling back to a hundred billion pairs a step.
+
+### 2.2 Which machine runs the step
+
+`lenia::step` rebuilds the index, then routes. Above 16,384 particles, in three axes, with a live grid and an adapter that answered, the tick goes to the graphics card; otherwise `lenia::walk` does it on the cores. `AXIOM_GPU=0` forces the cores, and any other number sets the floor directly.
+
+The card runs the same walk over the cell map the CPU just built. The grid rebuild deliberately stays on the cores: a prefix sum over a few million cells is a poor trade against the millisecond and a half it costs there, and the map is small enough to ride along. Threads take particles in grid order rather than index order, so neighbouring lanes stand in the same cell and read the same positions.
+
+The two backends cannot agree bit for bit, because `exp()` on a card is its own approximation rather than the one libm ships. **Replay is exact within a backend and only close across them.** The performance report states both every time it runs: one tick apart by under `1e-6` of a box, and twenty ticks on the card repeating exactly.
 
 ## 3. Interaction law
 
@@ -169,7 +180,7 @@ Blocks are built once per sampled tick from the union of what the plan requests,
 
 | block | requested by | contents |
 |---|---|---|
-| pair histogram | `pairs` | unordered pair counts per trait band and log radial bin, accumulated in `f64` |
+| pair histogram | `pairs` | unordered pair counts per trait band and log radial bin, over an evenly strided sample of at most 4,096 particles, accumulated in `f64` |
 | spatial field | each entry in `sides` | periodic density, trait sum, trait square sum, and four-bin trait counts per cell |
 | barcode | `graph` | H0 death-scale counts from the cutoff-limited spanning forest |
 | motion | `motion` | the previous sample's positions, plus its side-16 grid |
@@ -205,7 +216,7 @@ Fifty-four slots when all ten run. Every slot is clamped into `[0, 1]`.
 | 4 | `temporal` | Last | variance of the spatial picture across samples, plus its autocorrelation at lags 1, 2, and 4 |
 | 1 | `robustness` | Once | mean share of injected damage closed against an undamaged control |
 
-**`rdf`** walks every pair, deliberately: its far bins reach the box half-diagonal, past any kernel cutoff, so the neighbor grid cannot help. Bins run from one mean particle spacing to the box corner. A bin the baseline left near empty reports 1.0, meaning no information rather than a division by almost nothing.
+**`rdf`** walks every pair among its sample, deliberately: its far bins reach the box half-diagonal, past any kernel cutoff, so the neighbor grid cannot help. Every other block is linear in the swarm and this one is quadratic, so it stands on an evenly strided sample of at most 4,096 particles and costs the same at four thousand as at four hundred thousand. Below that ceiling the swarm is walked whole and the answer is exact. The stride is taken rather than drawn: it needs no rng, and it lands on the same particles in the measured cloud and in the uniform one it is divided by, so the two contribute the same pair count and their ratio needs no rescale. Index order is trait order, since seeding lays traits down in anchor blocks and a stride crosses all of them evenly. Bins run from one mean particle spacing to the box corner. A bin the baseline left near empty reports 1.0, meaning no information rather than a division by almost nothing.
 
 **`heterogeneity`** reads, per scale: density overdispersion after subtracting Poisson sampling variance; void probability; occupancy-weighted variance of local mean trait after a finite-population shot-noise correction, expressed as a share of the trait variance there is to explain; occupancy-weighted local trait entropy with a small-sample correction; and axial density autocorrelation. Both corrections are load-bearing. Without the Poisson subtraction a uniform swarm reads as heterogeneous merely because the grid is fine; without the shot-noise subtraction, single-particle cells on fine grids read as distinct regions. The three scales stay separate rather than averaged, because sub-structure lives at one scale and averaging hides it.
 
@@ -223,7 +234,7 @@ Its signature is `rdf`, `heterogeneity`, and `connectivity`, read through the sa
 
 ## 6. Rollout
 
-`run::sim` is the only place a `Sim` is built to be measured. It decides when to look, never what at.
+`harness::rollout::sim` is the only place a `Sim` is built to be measured. It decides when to look, never what at.
 
 1. Decode the flat genome, resolve the box from its coordination gene, re-clamp the pair genes at that box.
 2. Build the `Sim`. The uniform start's pair histogram becomes the structure baseline.
@@ -317,7 +328,75 @@ Independent noise scaled to each gene's own range, then one shared draw along th
 
 An evaluated generation folds into the population that survives it. Members sort best score first, and one is kept only if it sits clear of everything already kept. The cutoff is a quarter of the population's own median nearest-neighbor spacing: a fraction rather than an absolute distance, so it holds whatever units and however many axes a descriptor turns out to have. A population of identical genomes has zero spacing and drops nothing, which is what lets an opening generation through. The top scorer in a cluster survives and the rest of that cluster does not, so a converged batch cannot fill the population with copies of one genome.
 
-## 10. Module map
+## 10. Harness
+
+The binary is one call into `harness::run`. Commands arrive one per line on stdin, events leave one JSON line per event on stdout, flushed, because a frontend is blocked waiting on the next one. A closed pipe ends the process: there is nothing left for it to do.
+
+### 10.1 Session loop
+
+Read, step, report, repeat. An idle session blocks on stdin outright, so a paused world costs nothing. A session with a search running waits on the frame interval instead, which gives that core back to the batch and still answers a stop within one frame. A closed stdin with the owed work done is a finished script and returns.
+
+| constant | value | why |
+|---|---|---|
+| `FRAME_INTERVAL` | 40 ms | faster than a screen refreshes spends wire on positions nobody sees |
+| `FORWARD_CHUNK` | 200 ticks | a hundred-thousand-tick jump still answers commands and streams frames on the way |
+| `FRAME_POINTS` | 8,192 | past this a frame decimates by an integer stride |
+
+Speed is a rate, not a batch size: a running world owes `speed` ticks per frame interval and sleeps out the remainder. A fast-forward is exempt, since a jump is asked for rather than watched.
+
+Edits coalesce. A slider drag arrives as dozens of `gene` lines and one pair edit costs a fresh density calibration, so edits raise a flag and the rebuild happens once per turn in `settle`. Anything that reads the world, or throws away what has been read of it, settles first.
+
+### 10.2 Commands
+
+| verb | arguments | effect |
+|---|---|---|
+| `catalog` | | re-send catalog, layout, and state, then owe a frame |
+| `shape` | any of `particles`, `anchors`, `shells`, `bumps`, `radius`, `dt`, `seed`, `dimensions` | any subset of the fixed genome, range-checked here |
+| `gene` | `<index>=<value>` repeated | edit genes by position, clamped into what this box allows |
+| `genome` | `genes=` comma list | replace the whole flat vector, unclamped |
+| `run`, `pause` | | start and stop the live world |
+| `step` | `count` | owe that many ticks, taken in chunks |
+| `speed` | `steps`, 1 to 1024 | ticks owed per frame interval |
+| `reseed` | `seed` | rebuild the world from the shape and genes as they stand |
+| `measure` | `keys`, `every`, `now` | what to watch and how often, or one full reading on the spot |
+| `gates` | `<metric>=<floor>:<ceiling>` repeated | replace the whole gate set |
+| `frames` | `off` | stop or resume the position stream |
+| `search` | `start`, `stop`, `from`, `criterion`, `axes`, `algorithm`, `timesteps`, `seed`, and the evolve knobs | start or stop the one search a session runs at a time |
+| `quit` | | return on the spot, dropping owed work |
+
+An unknown verb is an error rather than silence. A `gene` batch is checked whole before any of it lands, because a frontend that hears an error reads it as "nothing happened". Ranges are checked in `reshape` because past that door a count of zero anchors reaches a decode that indexes a genome and panics.
+
+### 10.3 Events
+
+| event | carries |
+|---|---|
+| `catalog` | every metric with its width, reduction, dependencies, grids, and cost flags; the criteria; the evolve knobs with their ranges; the shape fields |
+| `layout` | every gene with its kind, label, range at this box, and current value |
+| `state` | running, tick, box length, whether the grid is in use, speed, cadence, watch list, gene count, shape |
+| `frame` | tick, box length, stride, true particle count, decimated positions and traits |
+| `sample` | tick, the plan's keys and widths, the descriptor, and every gate's verdict |
+| `search` | `started` with the resolved plan and shape, `stopping`, `done`, or `failed` with a reason |
+| `generation` | index, kept, best, median, elapsed, the four-way tally, the leader's genome and descriptor |
+| `specimen` | rank, score, genome, descriptor |
+| `error` | one message, with the caller's own text quoted |
+
+The catalog is data rather than documentation, so a metric cannot exist in the crate and be invisible to a page. Positions ship as decimal text at three decimals, descriptors at six. A harvest writes up to 512 specimens in one burst rather than a write and a flush apiece.
+
+### 10.4 Search as a job
+
+A search is assembled inside its own thread, so a long probe measurement never blocks the session loop and the plan it settles on is reported from the one place that knows it. Cancellation is an `AtomicBool` the per-generation watch closure reads, so the tuner needs no idea a frontend exists. A dropped receiver stops it too. The join reports a panicked search as a `failed` event rather than as silence, which is why the release profile keeps `panic = "unwind"`.
+
+Starting a search pauses the world: rayon takes every core for a batch, and a playground stuttering at two frames a second reads as a bug. Stopping lands after the generation in flight, since a batch of rollouts is already out.
+
+### 10.5 The relay and the page
+
+`ui/` is outside the crate. `ui/server.py` spawns the binary, fans every event line out to each open page over server-sent events, and serves the page itself. It is the only thing in the stack that touches disk: a run is exactly the event lines a search produced, so recording one is appending them to `ui/runs/*.jsonl`.
+
+A frame is a picture of now, so a late one replaces the picture already waiting rather than queueing behind it, and a browser that fell behind catches up instead of replaying the past. Everything else is news and is kept, up to a backlog of 400 lines. The reader thread ending is the only signal that the harness is gone, so it ends that way however it ends, and the page hears about it as a `harness` event of its own.
+
+The page holds no model of the world. Every control sends a command line, every readout came from an event, and what survives a reload is taste rather than anything the simulation owns. `ui/world.js` deposits each frame into a periodic density field on the GPU and raymarches the picture out of that field, reading density in multiples of a uniform swarm so one threshold means the same thing at any particle count, box, or decimation stride.
+
+## 11. Module map
 
 | Module | Responsibility |
 |---|---|
@@ -327,9 +406,17 @@ An evaluated generation folds into the population that survives it. Members sort
 | `engine/params.rs` | `FixedGenome` and `Genome`: layout, decode, uniform draws, per-gene bounds, clamping. |
 | `engine/matrix.rs` | The pair-indexed interaction matrix, derived from a genome and calibrated. |
 | `engine/resolve.rs` | `Probe`: the measured density reference and the box a coordination gene resolves to. |
-| `engine/lenia.rs` | One Particle-Lenia step. |
+| `engine/lenia.rs` | One Particle-Lenia step: which machine runs it, and the walk on the cores. |
+| `engine/gpu/mod.rs` | The same step on the graphics card: the device, its buffers, and the round trip. |
+| `engine/gpu/step.wgsl` | That step as a compute shader. The one place the physics is written twice. |
 | `engine/sim.rs` | Authoritative run state, reconstructible from the genome halves and the box. |
-| `run.rs` | One genome in, one descriptor out. The only place a `Sim` is built to be measured. |
+| `harness/mod.rs` | The session loop: read, step, report, repeat, and the command dispatch. |
+| `harness/protocol.rs` | The frontend boundary both ways: command parsing, JSON escaping, event writing. |
+| `harness/catalog.rs` | What a frontend may choose from, handed over as data rather than documented. |
+| `harness/playground.rs` | The live world a frontend drives, and the live measurement that keeps reading across ticks. |
+| `harness/search.rs` | A search assembled from one command line, run on its own thread, reported per generation. |
+| `harness/rollout.rs` | One genome in, one descriptor out. The only place a `Sim` is built to be measured. |
+| `main.rs` | The process entry point. One call into `harness::run`. |
 | `util.rs` | Deterministic xorshift, Euclidean distance, the non-finite guard. |
 | `tuner/metrics.rs` | `Spec`, the plan, the shared blocks, evaluation and folding. |
 | `tuner/metrics/field.rs` | The periodic density and trait grid every spatial metric reads. Not a metric. |
@@ -345,24 +432,38 @@ An evaluated generation folds into the population that survives it. Members sort
 
 `structure`, `heterogeneity`, `connectivity`, `mobility`, `turnover`, `asymmetry`, and `temporal` each hold one measurement and its declared spec.
 
-## 11. Test evidence
+## 12. Test evidence
 
-Twenty tests, all green, all in `tests/` outside `src/`. They cover code-level behavior.
+Three suites, one folder each, one flag each, all in `tests/` outside `src/`. `tests/run.sh` runs any combination and writes a dated report per suite into `tests/reports/`. `tests/TESTS.md` fixes the layout and says so.
 
-**Engine, seven cases.** Hat memberships sum to one and activate at most two adjacent anchors, across two through six anchors. Memberships are exactly one-hot at an anchor. Trait seeding reproduces the logit histogram exactly. Grid and all-pairs neighbor walks return identical pair sets. Periodic distance uses the minimum image across the wrap seam. A seeded simulation is bit-reproducible over fifty steps. Every anchor pair calibrates a finite, positive norm, and off-diagonal pairs get measured values rather than the fallback an unseeded calibration substrate produces.
+| suite | shape | what it holds |
+|---|---|---|
+| `smoke` | 69 cases, seconds, in process | one promise per case, checked against the library |
+| `behavior` | 79 promises, about half a minute | the real binary over its own protocol, plus the relay over a socket |
+| `performance` | timings, minutes, release, `#[ignore]` | what the machine costs, and that a replay is exact |
 
-**Tuner, thirteen cases.** A plan pulls in what a wanted metric reads, places every dependency ahead of its dependent, and names each metric once however many callers asked for it. Descriptor width equals the sum of the plan's widths. Every metric reads onto the shared axis on a surviving rollout. A gate rejects below its floor and above its ceiling, and an empty descriptor clears no gate with a floor. A `Once` metric holds its slots at zero before the final sample without shifting the layout, and a partial check skips its clause while still judging the rest. A dependent metric finds its axes in the descriptor it is handed. The same genome measures identically twice. Some genome out of eight survives a rollout and fills its descriptor. The structure criterion tells genomes apart, which guards the failure where every clause multiplied raw, nearly every genome scored zero, and the search quietly became random.
+**smoke** takes no child process and no sleep. `smoke/fixture.rs` is the shared setup: one small shape, a genome drawn inside it, the uniform cloud and law that genome makes, and the hunt for a genome still measurable after a short run. The three case files follow the crate's own halves.
 
-## 12. Limits
+- *Engine.* Hat memberships sum to one and activate at most two adjacent anchors, across two through six anchors, and are exactly one-hot at an anchor. Trait seeding reproduces the logit histogram exactly. Grid and all-pairs neighbor walks return identical pair sets. Periodic distance uses the minimum image across the wrap seam. A seeded simulation is bit-reproducible over fifty steps. Every anchor pair calibrates a finite, positive norm, and off-diagonal pairs get measured values rather than the fallback an unseeded calibration substrate produces.
+- *Tuner.* A plan pulls in what a wanted metric reads, places every dependency ahead of its dependent, and names each metric once however many callers asked for it. Descriptor width equals the sum of the plan's widths, and every metric fills exactly the slots it declared. Every metric reads onto the shared axis on a surviving rollout. A gate rejects below its floor and above its ceiling, and an empty descriptor clears no gate with a floor. A `Once` metric holds its slots at zero before the final sample without shifting the layout, and a partial check skips its clause while still judging the rest. The same genome measures identically twice. The structure criterion tells genomes apart, which guards the failure where every clause multiplied raw, nearly every genome scored zero, and the search quietly became random.
+- *Harness.* A law edit keeps the world and a world edit replaces it. A reading comes due on the cadence it was given. A live reading matches the rollout it imitates. A watched search reports every generation and stops when told. A survivor carries the genome and the descriptor it was scored on.
+
+**behavior** runs as one test on purpose, because the report is the point: an area that panics costs its own row and the rest still runs. It groups by area, from the greeting through the command boundary, editing a world, measurement, gates, search, and what the Python relay owns.
+
+**performance** records the machine and its load beside every row, because each is a wall-clock reading that assumes it has the machine to itself.
+
+## 13. Limits
 
 Read as absences in the code, not as a roadmap.
 
 - **Traits are frozen.** No trait motion, birth, death, inheritance, or resource cycle.
-- **Nothing is written to disk.** No serialization of any kind, so a population exists for the life of the process that produced it and a search cannot be stopped and continued.
-- **No entry point.** No binary, no command line, and nothing that draws. A caller assembles a `Search` in Rust.
+- **The crate serializes nothing.** A run survives only as the event lines the Python relay appended, which hold genomes and descriptors and no simulation state. A search therefore cannot be stopped and continued; loading a survivor replays it from its shape and genes.
+- **A search cannot be browsed while it runs.** The generation line carries the leader and the median, and the whole population waits until the search is over.
 - **One algorithm, one absolute criterion.** No comparison against another search family exists in the crate, so no claim about `Evolve` beating anything is supported here.
 - **The measurement grid pins a search to three axes** even though the engine reads dimensionality from data. Lifting it means generalizing `field` and `connectivity`, not relaxing the check.
 - **Explicit Euler at a fixed timestep.** Divergence is caught by a finiteness check, not prevented by the integrator.
+- **The physics is written twice**, once in `lenia::walk` and once in `step.wgsl`, and nothing but a test holds the two together. A change to one is a change owed to the other.
+- **The card takes one swarm at a time**, not a whole generation, so a batch queues for it. At a hundred and fifty thousand particles a generation of forty-eight is minutes rather than seconds, and the ceiling on that is the card's memory bandwidth rather than its arithmetic.
 - **The shell truncation** puts a small hard cutoff in the executed force.
 - **Expedition targeting** in dozens of dimensions is random goal direction, not coverage-aware illumination.
 - **The metric set is hand-designed.** It reads physical behavior without a projection, and it still encodes a prior about what is worth noticing.

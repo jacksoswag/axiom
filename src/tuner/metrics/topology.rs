@@ -9,8 +9,7 @@ use super::{alive, log_bin, Blocks, Metric, Spec};
 
 /// Bins in the log-spaced death-scale histogram
 const BARS: usize = 8;
-pub const SPEC: Spec = Spec { graph: true, ..Spec::of("topology", BARS, measure) };
-pub const METRIC: Metric = &SPEC;
+pub const METRIC: Metric = &Spec { graph: true, ..Spec::of("topology", BARS, measure) };
 
 pub fn measure(base: &Blocks, _: &[f32]) -> Vec<f32> {
     mass(base.barcode()).into_iter().map(|value| value.clamp(0.0, 1.0)).collect()
@@ -21,8 +20,10 @@ pub struct Barcode {
     pub components: usize, // still separate at cutoff, at least 1 for any non-empty swarm
 }
 
-/// One edge of the neighbor graph, kept only long enough to sort
-struct Edge { length: f32, a: u32, b: u32 }
+/// One edge of the neighbor graph, kept only long enough to sort. Squared, because sorting on the
+/// square agrees with sorting on the length, and only the edges that go on to join two components
+/// (at most one per particle, out of every candidate pair) ever need the real distance.
+struct Edge { length_sq: f32, a: u32, b: u32 }
 
 /// Owns its grid rebuild, so a caller only hands over the substrate.
 pub fn h0(substrate: &mut Substrate, cutoff: f32) -> Barcode {
@@ -34,13 +35,13 @@ pub fn h0(substrate: &mut Substrate, cutoff: f32) -> Barcode {
     let mut edges = collect_edges(substrate, cutoff);
     // Ties broken by index so the tree, and therefore the barcode, is reproducible. Float
     // comparison alone would leave equal-length edges in whatever order the scan produced.
-    edges.sort_unstable_by(|x, y| x.length.total_cmp(&y.length).then(x.a.cmp(&y.a)).then(x.b.cmp(&y.b)));
+    edges.sort_unstable_by(|x, y| x.length_sq.total_cmp(&y.length_sq).then(x.a.cmp(&y.a)).then(x.b.cmp(&y.b)));
 
     let mut union = Union::new(count);
     let mut barcode = Barcode { bins: vec![0.0; BARS], components: count };
     for edge in edges {
         if union.join(edge.a as usize, edge.b as usize) { // first join at this scale = one bar
-            barcode.bins[log_bin(edge.length, cutoff * 0.01, cutoff, BARS)] += 1.0;
+            barcode.bins[log_bin(edge.length_sq.sqrt(), cutoff * 0.01, cutoff, BARS)] += 1.0;
             barcode.components -= 1;
         }
     }
@@ -66,16 +67,20 @@ fn mass(raw: &Barcode) -> Vec<f32> {
 }
 
 fn collect_edges(substrate: &Substrate, cutoff: f32) -> Vec<Edge> {
-    let mut edges = Vec::new();
-    for i in 0..substrate.traits.len() {
+    let count = substrate.traits.len();
+    let dims = substrate.dimensions;
+    // Liveness once per particle rather than once per candidate pair, which is the same question
+    // asked a few dozen times over for every particle in reach.
+    let living: Vec<bool> = substrate.positions.chunks_exact(dims).map(alive).collect();
+    let cutoff_sq = cutoff * cutoff; // the pair test squared, so a candidate costs no square root
+    let mut edges = Vec::with_capacity(count * 4); // a few neighbors each, past the first few doublings
+    for i in 0..count {
+        if !living[i] { continue; }
         let pos_i = substrate.pos(i);
-        if !alive(pos_i) { continue; }
         let mut consider = |j: usize| {
-            if j <= i { return; } // each pair once; the grid offers both directions
-            let pos_j = substrate.pos(j);
-            if !alive(pos_j) { return; }
-            let distance = distance_sq(pos_i, pos_j, substrate, &mut []).sqrt();
-            if distance <= cutoff { edges.push(Edge { length: distance, a: i as u32, b: j as u32 }); }
+            if j <= i || !living[j] { return; } // each pair once; the grid offers both directions
+            let length_sq = distance_sq(pos_i, substrate.pos(j), substrate, &mut []);
+            if length_sq <= cutoff_sq { edges.push(Edge { length_sq, a: i as u32, b: j as u32 }); }
         };
         substrate.visit_neighbors(pos_i, &mut consider);
     }

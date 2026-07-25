@@ -3,7 +3,9 @@
 
 use crate::tuner::metrics::{scalar, Metric, Reduce};
 
-/// Valid range on one metric, read in that metric's own descriptor units.
+/// Valid range on one metric, read in that metric's own descriptor units. Clone because a harness
+/// holds the set a frontend built and hands a copy to each search it starts.
+#[derive(Clone)]
 pub struct Gate {
     pub metric: Metric,
     pub floor: f32,

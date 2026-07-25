@@ -10,8 +10,7 @@ use super::{Blocks, Metric, Spec};
 pub const SIDES: [usize; 3] = [4, 8, 16];
 pub const VALUES: usize = 5;
 const WIDTH: usize = SIDES.len() * VALUES;
-pub const SPEC: Spec = Spec { sides: &SIDES, ..Spec::of("heterogeneity", WIDTH, measure) };
-pub const METRIC: Metric = &SPEC;
+pub const METRIC: Metric = &Spec { sides: &SIDES, ..Spec::of("heterogeneity", WIDTH, measure) };
 
 pub fn measure(base: &Blocks, _: &[f32]) -> Vec<f32> {
     SIDES.into_iter().flat_map(|side| of(base.field(side))).enumerate().map(scale).collect()
@@ -19,14 +18,17 @@ pub fn measure(base: &Blocks, _: &[f32]) -> Vec<f32> {
 
 fn of(field: &SpatialField) -> [f32; VALUES] {
     let cells = field.density.len() as f32;
-    let mean = field.density.iter().sum::<f32>() / cells;
+    // A density grid holds counts, so its total is the particle count and its empty cells are the
+    // complement of its occupied ones. Both were separate full passes; neither has to be.
+    let particles = field.density.iter().sum::<f32>();
+    let mean = particles / cells;
     let raw_variance = field.density.iter().map(|value| (value - mean).powi(2)).sum::<f32>() / cells;
     // Remove the Poisson sampling variance: a uniform finite swarm should read near zero instead
     // of looking heterogeneous merely because the grid is fine.
     let density_variance = ((raw_variance - mean) / mean.max(1e-6).powi(2)).max(0.0);
-    let void = field.density.iter().filter(|v| **v == 0.0).count() as f32 / cells;
-    let particles = field.density.iter().sum::<f32>();
-    let occupied = field.density.iter().filter(|&&n| n > 0.0).count();
+    let empty = field.density.iter().filter(|v| **v == 0.0).count();
+    let void = empty as f32 / cells;
+    let occupied = field.density.len() - empty;
     let trait_mean = field.trait_sum.iter().sum::<f32>() / particles.max(1.0);
     let between_variance = field.density.iter().enumerate().filter(|(_, n)| **n > 0.0)
         .map(|(i, &n)| n * (field.local_mean_trait(i) - trait_mean).powi(2))

@@ -25,6 +25,9 @@ impl Criterion {
             Criterion::Structure => &structure::METRICS,
         }
     }
+    /// Whether a score moves when the population around it does. An absolute criterion leaves every
+    /// stored score standing for the life of a run, so a search under one can skip re-scoring entirely
+    pub fn relative(&self) -> bool { matches!(self, Criterion::Novelty(_)) }
     /// Score one genome against a population: population-relative for novelty, absolute for
     /// structure. Re-scoring a member passes a population holding it, biasing everyone alike
     pub fn score(&self, values: &[f32], plan: &[Metric], population: &[Specimen]) -> f32 {

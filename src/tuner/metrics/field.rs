@@ -52,21 +52,19 @@ impl SpatialField {
     }
     pub fn local_mean_trait(&self, index: usize) -> f32 { self.trait_sum[index] / self.density[index].max(1.0) }
     /// Separable 3-tap blur on every axis. Runs before any threshold, so one stray particle cannot
-    /// register as a dense phase.
+    /// register as a dense phase. One pass per axis reaches the same 27-cell cube as a single nested
+    /// sweep would, for nine taps of work instead of twenty-seven and no chained index decoding.
     pub fn smoothed(&self) -> Vec<f32> {
-        let weights = [0.25, 0.5, 0.25];
-        (0..self.density.len()).map(|cell| {
-            let mut value = 0.0;
-            for (xi, dx) in [-1, 0, 1].into_iter().enumerate() {
-                for (yi, dy) in [-1, 0, 1].into_iter().enumerate() {
-                    for (zi, dz) in [-1, 0, 1].into_iter().enumerate() {
-                        let next = self.neighbor(self.neighbor(self.neighbor(cell, 0, dx), 1, dy), 2, dz);
-                        value += weights[xi] * weights[yi] * weights[zi] * self.density[next];
-                    }
-                }
+        let mut values = self.density.clone();
+        let mut blurred = vec![0.0; values.len()];
+        for axis in 0..GRID_AXES {
+            for cell in 0..values.len() {
+                blurred[cell] = 0.5 * values[cell]
+                    + 0.25 * (values[self.neighbor(cell, axis, -1)] + values[self.neighbor(cell, axis, 1)]);
             }
-            value
-        }).collect()
+            std::mem::swap(&mut values, &mut blurred);
+        }
+        values
     }
 }
 

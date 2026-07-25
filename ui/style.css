@@ -1,0 +1,241 @@
+/* One screen: the world is the page, everything else floats over it in glass. Dense, dark, and out of
+   the way, so nothing competes with the material. */
+:root {
+  --canvas: #07080a;
+  --panel: rgba(15, 17, 21, 0.78);
+  --raise: rgba(255, 255, 255, 0.045);
+  --edge: rgba(255, 255, 255, 0.08);
+  --edge-strong: rgba(255, 255, 255, 0.18);
+  --text: #dae0e8;
+  --faint: #767f8b;
+  --accent: #59e0c8;
+  --warn: #e8795f;
+  --ok: #8fd97a;
+  --bar: 34px;
+  --dock: 46px;
+  --gap: 10px;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; overflow: hidden; }
+body {
+  background: var(--canvas);
+  color: var(--text);
+  font: 12px/1.45 -apple-system, "SF Pro Text", Inter, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+#canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+button, input, select { font: inherit; color: inherit; }
+
+/* status bar */
+
+.bar {
+  position: fixed; inset: 0 0 auto 0; height: var(--bar); z-index: 30;
+  display: flex; align-items: center; gap: 6px; padding: 0 10px;
+  background: linear-gradient(to bottom, rgba(6, 7, 9, 0.94), rgba(6, 7, 9, 0.5));
+  border-bottom: 1px solid var(--edge);
+}
+.mark { font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; font-size: 10.5px; margin-right: 4px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 5px; color: var(--faint);
+  font-size: 10.5px; font-variant-numeric: tabular-nums; white-space: nowrap;
+  padding: 2px 7px; border: 1px solid transparent; border-radius: 10px;
+}
+.chip.value { color: var(--text); }
+#link { border-color: var(--edge); }
+.dot { width: 5px; height: 5px; border-radius: 50%; background: var(--warn); }
+#link.live .dot { background: var(--accent); }
+.spacer { flex: 1; }
+
+/* floating panels */
+
+.drawer, .rail {
+  position: fixed; top: calc(var(--bar) + var(--gap)); bottom: calc(var(--dock) + var(--gap));
+  z-index: 20; width: 322px; display: flex;
+  background: var(--panel); border: 1px solid var(--edge); border-radius: 4px;
+  /* Live blur over a canvas that repaints while a world runs is a compositor pass per frame, at panel
+     area times device pixels. Ten reads the same as sixteen behind glass this opaque and costs less. */
+  backdrop-filter: blur(10px) saturate(1.25); -webkit-backdrop-filter: blur(10px) saturate(1.25);
+  transition: transform 0.22s cubic-bezier(0.3, 0.7, 0.3, 1), opacity 0.22s;
+}
+.drawer { left: var(--gap); }
+.rail { right: var(--gap); width: 328px; }
+.drawer.away { transform: translateX(calc(-100% - var(--gap) - 2px)); opacity: 0; pointer-events: none; }
+.rail.away { transform: translateX(calc(100% + var(--gap) + 2px)); opacity: 0; pointer-events: none; }
+.scroll { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 4px 11px 12px; }
+.scroll::-webkit-scrollbar { width: 8px; }
+.scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.13); border-radius: 4px; }
+.scroll::-webkit-scrollbar-track { background: none; }
+
+.handle {
+  position: fixed; top: calc(var(--bar) + var(--gap)); z-index: 21;
+  background: var(--panel); border: 1px solid var(--edge); border-radius: 3px;
+  color: var(--faint); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+  padding: 8px 5px; cursor: pointer; writing-mode: vertical-rl;
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  opacity: 0; pointer-events: none; transition: opacity 0.22s;
+}
+.handle.left { left: var(--gap); }
+.handle.right { right: var(--gap); }
+.handle.shown { opacity: 1; pointer-events: auto; }
+.handle:hover { color: var(--text); border-color: var(--edge-strong); }
+
+/* sections */
+
+.block { border-bottom: 1px solid var(--edge); padding: 6px 0 10px; }
+.block:last-child { border-bottom: none; }
+.block > h2, .fold > summary {
+  display: flex; align-items: center; gap: 7px; margin: 0 0 6px;
+  color: var(--faint); font-size: 9.5px; font-weight: 500;
+  letter-spacing: 0.13em; text-transform: uppercase;
+}
+.fold { border-bottom: 1px solid var(--edge); }
+.fold:last-child { border-bottom: none; }
+.fold > summary { cursor: pointer; list-style: none; padding: 9px 0; user-select: none; }
+.fold > summary::-webkit-details-marker { display: none; }
+.fold > summary::after {
+  content: ""; margin-left: auto; width: 5px; height: 5px; border-right: 1px solid currentColor;
+  border-bottom: 1px solid currentColor; transform: rotate(-45deg); transition: transform 0.18s;
+}
+.fold[open] > summary::after { transform: rotate(45deg); }
+.fold[open] > summary { color: var(--text); }
+.fold > .body { padding: 0 0 10px; }
+.tail { margin-left: auto; color: var(--faint); text-transform: none; letter-spacing: 0; font-size: 10.5px; }
+
+/* controls */
+
+.ctl { display: grid; grid-template-columns: 88px 1fr 62px; align-items: center; gap: 7px; margin: 4px 0; }
+.ctl > label { color: var(--faint); font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ctl:hover > label { color: var(--text); }
+.num {
+  background: rgba(0, 0, 0, 0.4); border: 1px solid var(--edge); border-radius: 2px;
+  padding: 2px 4px; text-align: right; font-variant-numeric: tabular-nums; width: 100%;
+  font-size: 11px; -moz-appearance: textfield;
+}
+.num::-webkit-outer-spin-button, .num::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.num:focus { outline: none; border-color: var(--accent); }
+.pair-row { display: grid; grid-template-columns: 88px 1fr auto; align-items: center; gap: 7px; margin: 6px 0; }
+.pair-row > label { color: var(--faint); font-size: 10.5px; }
+input[type=range] {
+  -webkit-appearance: none; appearance: none; width: 100%; height: 16px; background: none; cursor: ew-resize;
+}
+input[type=range]::-webkit-slider-runnable-track { height: 2px; background: rgba(255, 255, 255, 0.15); border-radius: 2px; }
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 10px; height: 10px; border-radius: 50%;
+  background: var(--accent); margin-top: -4px; box-shadow: 0 0 0 3px rgba(89, 224, 200, 0.12);
+}
+input[type=range]:active::-webkit-slider-thumb { box-shadow: 0 0 0 5px rgba(89, 224, 200, 0.2); }
+
+button {
+  background: var(--raise); border: 1px solid var(--edge); border-radius: 2px;
+  padding: 4px 9px; cursor: pointer; white-space: nowrap;
+}
+button:hover { border-color: var(--edge-strong); }
+button.on { color: var(--accent); border-color: rgba(89, 224, 200, 0.45); background: rgba(89, 224, 200, 0.08); }
+button.primary { color: #061014; background: var(--accent); border-color: var(--accent); font-weight: 600; }
+button.primary:hover { filter: brightness(1.08); }
+button:disabled { opacity: 0.4; cursor: default; }
+button.wide { min-width: 62px; }
+button.tiny { padding: 2px 6px; font-size: 10px; }
+select {
+  background: rgba(0, 0, 0, 0.4); border: 1px solid var(--edge); border-radius: 2px; padding: 2px 4px;
+}
+.row { display: flex; gap: 6px; align-items: center; margin: 7px 0; flex-wrap: wrap; }
+.row.tight { margin: 4px 0; }
+.grow { flex: 1; }
+.note { color: var(--faint); font-size: 10.5px; margin: 6px 0 0; }
+.seg { display: flex; border: 1px solid var(--edge); border-radius: 2px; overflow: hidden; }
+.seg button { border: none; border-radius: 0; flex: 1; background: none; color: var(--faint); }
+.seg button + button { border-left: 1px solid var(--edge); }
+.seg button.on { background: rgba(89, 224, 200, 0.12); color: var(--accent); }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; margin: 5px 0; }
+.chips button {
+  color: var(--faint); font-size: 10.5px; padding: 2px 7px; border-radius: 9px;
+}
+.chips button.on { color: var(--accent); border-color: rgba(89, 224, 200, 0.45); }
+.chips button .cost { opacity: 0.55; font-size: 9.5px; margin-left: 3px; }
+
+/* interaction matrix */
+
+.matrix { display: grid; gap: 2px; margin: 6px 0 8px; max-width: 216px; }
+.matrix button {
+  aspect-ratio: 1; padding: 0; border-radius: 2px; position: relative;
+  border: 1px solid transparent; font-size: 9px; color: rgba(255, 255, 255, 0.55);
+}
+.matrix button.on { border-color: var(--accent); color: var(--text); }
+.axis { display: flex; justify-content: space-between; color: var(--faint); font-size: 9.5px; }
+
+/* readouts */
+
+.reading { margin: 5px 0; }
+.reading > span { display: flex; justify-content: space-between; gap: 8px; color: var(--faint); font-size: 10.5px; }
+.reading b { color: var(--text); font-weight: 500; font-variant-numeric: tabular-nums; }
+.bars { display: flex; gap: 1px; height: 20px; align-items: flex-end; margin-top: 2px; }
+.bars i { flex: 1; background: var(--accent); opacity: 0.7; min-height: 1px; border-radius: 1px 1px 0 0; }
+.gate { display: flex; align-items: center; gap: 6px; margin: 3px 0; font-size: 10.5px; font-variant-numeric: tabular-nums; }
+.gate .name { flex: 1; color: var(--faint); }
+.gate .verdict { width: 30px; text-align: right; }
+.gate .verdict.pass { color: var(--ok); }
+.gate .verdict.fail { color: var(--warn); }
+.gate input { width: 48px; background: rgba(0, 0, 0, 0.4); border: 1px solid var(--edge); border-radius: 2px; padding: 1px 3px; text-align: right; }
+
+.lines { color: var(--faint); font-size: 10.5px; font-variant-numeric: tabular-nums; margin: 4px 0 8px; }
+.lines b { color: var(--text); font-weight: 500; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 10.5px; }
+th {
+  text-align: right; color: var(--faint); font-weight: 400; font-size: 9px;
+  letter-spacing: 0.08em; text-transform: uppercase; padding-bottom: 2px;
+}
+th:first-child, td:first-child { text-align: left; }
+td { text-align: right; padding: 1px 0; border-top: 1px solid rgba(255, 255, 255, 0.045); color: var(--faint); }
+td.best { color: var(--text); }
+
+.cards { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.card { border: 1px solid var(--edge); border-radius: 3px; padding: 5px 6px; cursor: pointer; }
+.card:hover { border-color: var(--edge-strong); }
+.card.on { border-color: rgba(89, 224, 200, 0.5); }
+.card .top { display: flex; justify-content: space-between; align-items: baseline; font-size: 10px; color: var(--faint); }
+.card .score { color: var(--accent); font-variant-numeric: tabular-nums; }
+.card .strip { display: flex; gap: 1px; height: 15px; align-items: flex-end; margin: 3px 0 1px; }
+.card .strip i { flex: 1; background: rgba(218, 224, 232, 0.5); min-height: 1px; }
+.card .acts { display: flex; gap: 4px; margin-top: 3px; }
+.card .acts button { flex: 1; font-size: 10px; padding: 2px 0; }
+
+/* dock */
+
+.dock {
+  position: fixed; inset: auto var(--gap) var(--gap) var(--gap); height: var(--dock); z-index: 25;
+  display: flex; align-items: center; gap: 7px; padding: 0 11px;
+  background: var(--panel); border: 1px solid var(--edge); border-radius: 4px;
+  /* Live blur over a canvas that repaints while a world runs is a compositor pass per frame, at panel
+     area times device pixels. Ten reads the same as sixteen behind glass this opaque and costs less. */
+  backdrop-filter: blur(10px) saturate(1.25); -webkit-backdrop-filter: blur(10px) saturate(1.25);
+}
+.dock-knob { display: flex; align-items: center; gap: 7px; color: var(--faint); font-size: 10.5px; }
+.dock-knob input[type=range] { width: 96px; }
+.dock-knob b { color: var(--text); font-variant-numeric: tabular-nums; min-width: 16px; }
+.divider { width: 1px; height: 22px; background: var(--edge); margin: 0 4px; }
+.track {
+  flex: 1; height: 22px; position: relative; border: 1px solid var(--edge); border-radius: 2px;
+  overflow: hidden; display: flex; align-items: center; min-width: 160px;
+}
+.track i {
+  position: absolute; inset: 0 auto 0 0; width: 0; background: rgba(89, 224, 200, 0.16);
+  transition: width 0.3s ease-out;
+}
+.track span {
+  position: relative; padding: 0 8px; color: var(--faint); font-size: 10.5px;
+  font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* toasts */
+
+.toasts {
+  position: fixed; left: 50%; bottom: calc(var(--dock) + var(--gap) * 2); transform: translateX(-50%);
+  z-index: 40; display: flex; flex-direction: column; gap: 5px; align-items: center; pointer-events: none;
+}
+.toast {
+  background: rgba(20, 22, 27, 0.94); border: 1px solid var(--edge-strong); border-radius: 3px;
+  padding: 5px 11px; font-size: 11px; animation: rise 0.2s ease-out;
+}
+.toast.bad { border-color: rgba(232, 121, 95, 0.55); color: #f0b3a3; }
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }

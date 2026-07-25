@@ -6,19 +6,28 @@ description = "Three-dimensional continuous-trait Particle-Lenia world search"
 
 [dependencies]
 rayon = "1"
-eframe = { version = "0.35.0", optional = true }
+# The pair loop on the graphics card. Portable rather than Metal-direct on purpose: the machine that
+# runs a campaign at a few hundred thousand particles is unlikely to be the laptop that wrote it.
+wgpu = { version = "30", default-features = false, features = ["metal", "vulkan", "dx12", "wgsl"] }
+# Already in the tree underneath wgpu. Declared so the buffer writes above can hand a slice of floats
+# to a queue that wants bytes without this crate growing an unsafe block to do it.
+bytemuck = "1"
 
-[features]
-default = []
-viewer = ["dep:eframe"]
-
+# Every hot leaf function in the crate sits behind a module boundary from its caller: the kernel is
+# called from the step loop, the grid walk from both. Whole-crate optimization is what lets those
+# inline into each other, and it costs build time and nothing else. panic stays unwind on purpose:
+# Job::join reports a search-thread panic as an event, and aborting would make it a dead process.
 [profile.release]
 opt-level = 3
-lto = "thin"
+lto = "fat"
+codegen-units = 1
 
-[lib]
+# The suite steps real rollouts, and unoptimized stepping turns seconds into minutes. The test profile
+# inherits this one, and so does the library a test links, which is where the stepping actually happens.
+[profile.dev]
+opt-level = 2
+
+# One binary: the harness a frontend drives over stdin and stdout. ui/server.py spawns it and relays.
+[[bin]]
 name = "axiom"
-path = "src/lib.rs"
-
-# No binaries: main.rs, train.rs and the viewer are gone, and nothing has been written to drive
-# the re-authored tuner yet. Re-declare a [[bin]] when there is a source file behind it.
+path = "src/main.rs"

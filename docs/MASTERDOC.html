@@ -287,7 +287,12 @@ footer .meta{margin-top:30px;padding-top:20px;border-top:1px solid rgba(243,236,
       <li><a href="#criteria">Two ways to want something</a></li>
       <li><a href="#evolve">Three lanes and a way out</a></li>
     </ol>
-    <div class="part">V · Edges</div>
+    <div class="part">V · Driving it</div>
+    <ol>
+      <li><a href="#harness">Lines in, lines out</a></li>
+      <li><a href="#frontend">A page that owns nothing</a></li>
+    </ol>
+    <div class="part">VI · Edges</div>
     <ol>
       <li><a href="#modules">Module map</a></li>
       <li><a href="#limits">What the code does not contain</a></li>
@@ -300,11 +305,11 @@ footer .meta{margin-top:30px;padding-top:20px;border-top:1px solid rgba(243,236,
     <div class="grid-bg"></div>
     <p class="kicker">A search over interaction laws</p>
     <h1>Most rules make static. <em>Some do not.</em></h1>
-    <p class="lede"><b>AXIOM</b> is a library. A rule is a flat list of floats; the engine turns one into a running Particle-Lenia simulation, the tuner reduces that simulation to a bounded row of numbers and judges it, and the search breeds the rules whose numbers came back interesting. Nothing here is sampled from a trained model, and nothing here is drawn.</p>
+    <p class="lede"><b>AXIOM</b> searches for rules. A rule is a flat list of floats; the engine turns one into a running Particle-Lenia simulation, the tuner reduces that simulation to a bounded row of numbers and judges it, and the search breeds the rules whose numbers came back interesting. A harness puts all of it behind one line protocol, so a browser can fly through a world while a search runs beside it. Nothing here is sampled from a trained model.</p>
     <div class="stats">
       <div class="stat"><div class="n">54</div><div class="t">descriptor slots when every metric runs</div></div>
       <div class="stat"><div class="n">10</div><div class="t">metrics, each owning its own file</div></div>
-      <div class="stat"><div class="n">20</div><div class="t">behavioral tests, all outside <code>src/</code></div></div>
+      <div class="stat"><div class="n">148</div><div class="t">checks across the smoke and behavior suites</div></div>
     </div>
   </header>
 
@@ -326,36 +331,37 @@ footer .meta{margin-top:30px;padding-top:20px;border-top:1px solid rgba(243,236,
 
   <section class="block" id="what">
     <h3>What the crate is</h3>
-    <p class="plain lead">One Rust library with four modules and no binaries. It does not open a file, print anything, or draw anything. A search is assembled in code, run inside the calling process, and handed back as a ranked list of survivors that exists for exactly as long as the caller holds it.</p>
+    <p class="plain lead">One Rust crate with four modules and one program. The program reads commands on one pipe and writes results on another, so whatever wants to drive it can, and a browser is only the first thing that did. A caller who would rather skip the pipe assembles a search in code and gets a ranked list of survivors back in the same process.</p>
 
     <details class="layer analogy">
-      <summary><span class="badge">Analogy</span><span class="stitle">A wind tunnel, not an aircraft</span><span class="chev">›</span></summary>
+      <summary><span class="badge">Analogy</span><span class="stitle">A wind tunnel with a window cut in it</span><span class="chev">›</span></summary>
       <div class="body">
-        <p>This is equipment for finding out whether a shape flies. You bolt a candidate in, run the fan, and read the instruments. It does not take off, it does not carry passengers, and it has no cockpit.</p>
-        <p>Everything the repository contains is the tunnel and the instruments: a simulator, a set of gauges, a rule for rejecting a candidate mid-run, and a breeding loop that proposes the next batch of shapes.</p>
+        <p>This is equipment for finding out whether a shape flies. You bolt a candidate in, run the fan, and read the instruments. It does not take off, it does not carry passengers, and it goes nowhere.</p>
+        <p>What it does have is a window and a set of dials on the outside. Someone can stand at the glass, turn a knob, watch what the change did, and set a batch of candidates running while they keep watching. The tunnel does not know anyone is there.</p>
       </div>
     </details>
 
     <details class="layer technical">
-      <summary><span class="badge">Technical</span><span class="stitle">Four modules</span><span class="chev">›</span></summary>
+      <summary><span class="badge">Technical</span><span class="stitle">Four modules and a binary</span><span class="chev">›</span></summary>
       <div class="body">
-        <p><code>engine</code> is a simulation as a pure function of a genome. <code>run</code> takes one genome in and hands one descriptor out. <code>tuner</code> measures, gates, scores, and searches. <code>util</code> holds the seeded xorshift, Euclidean distance, and the non-finite guard.</p>
-        <p>A caller builds a <code>Search</code>, calls <code>run</code>, and gets a <code>Vec&lt;Specimen&gt;</code> sorted best score first. Each <code>Specimen</code> carries its genome, its descriptor, and its score. Nothing is serialized, so a search cannot be stopped and continued.</p>
+        <p><code>engine</code> is a simulation as a pure function of a genome. <code>tuner</code> measures, gates, scores, and searches. <code>harness</code> owns the protocol, the live world, and the rollout that turns one genome into one descriptor. <code>util</code> holds the seeded xorshift, Euclidean distance, and the non-finite guard. <code>main.rs</code> is one call into <code>harness::run</code>.</p>
+        <p>A caller building a search directly gets a <code>Vec&lt;Specimen&gt;</code> sorted best score first, each carrying its genome, its descriptor, and its score. The crate serializes nothing; what reaches disk is whatever the Python relay appended from the event stream.</p>
       </div>
     </details>
   </section>
 
   <section class="block" id="halves">
     <h3>Two halves and a hinge</h3>
-    <p class="plain lead">The simulator and the search never speak to each other directly. The simulator does not know it is being measured, and the search never builds a simulation. One small module in the middle owns that meeting, which is the only place the two touch.</p>
+    <p class="plain lead">The simulator and the search never speak to each other directly. The simulator does not know it is being measured, and the search never builds a simulation. One small file in the middle owns that meeting, which is the only place the two touch.</p>
 
     <div class="tablewrap">
       <table>
         <thead><tr><th>Module</th><th>May not</th></tr></thead>
         <tbody>
-          <tr><td class="mono">engine</td><td>import from <code>tuner</code> or <code>run</code></td></tr>
+          <tr><td class="mono">engine</td><td>import from <code>tuner</code> or <code>harness</code></td></tr>
           <tr><td class="mono">tuner</td><td>open a file, print, or build a simulation</td></tr>
-          <tr><td class="mono">run</td><td>decide <em>what</em> to measure; it decides only when to look</td></tr>
+          <tr><td class="mono">harness/rollout</td><td>decide <em>what</em> to measure; it decides only when to look</td></tr>
+          <tr><td class="mono">everything else</td><td>print, spawn a thread, or hold a running world; only <code>harness</code> may</td></tr>
         </tbody>
       </table>
     </div>
@@ -462,6 +468,7 @@ step += 2 × dt × receiver_weight × weight × B'(potential / norm) / norm × g
         <p>The <code>2</code> is the surviving term of <code>G = 2B - 1</code> under differentiation. Only the slope enters movement, so the <code>-1</code> dies and the factor stays.</p>
         <p>Accumulation runs only over pairs where both memberships are nonzero, at most four per neighbor. Conversion then runs over <em>every</em> possible source against the receiver's active anchors, because a source anchor with no local mass still has a defined response at zero sensed density.</p>
         <p>Distance is minimum-image with softening added last, after the per-axis squares, matching the accumulation order callers depend on. The square root is taken lazily, at most once per neighbor, and skipped entirely when the squared distance is already past the pair's squared reach. The integration is explicit Euler, wrapped with <code>rem_euclid</code>.</p>
+        <p>Past 16,384 particles the step runs on the graphics card instead of the cores, over the same neighbor index the CPU builds either way. Size is the only thing that decides, and <code>AXIOM_GPU=0</code> forces the cores so the two can be compared. They agree to the precision <code>f32</code> has rather than exactly, since <code>exp()</code> on a card is its own approximation: a replay is exact within a backend and close across them.</p>
       </div>
     </details>
   </section>
@@ -574,6 +581,7 @@ step += 2 × dt × receiver_weight × weight × B'(potential / norm) / norm × g
       <div class="body">
         <p>Grid sides are deduplicated before building, so two metrics wanting one resolution cost one grid.</p>
         <p>The pair histogram accumulates in <code>f64</code>. A thousand-particle simulation contributes half a million pairs, and <code>f32</code> starts dropping counts at that magnitude. The pair walk is deliberately all-pairs rather than grid-accelerated, because its far bins reach the box half-diagonal, well past any kernel cutoff the neighbor grid could exploit.</p>
+        <p>Every other block is linear in the swarm and this one is quadratic, so it stands on an evenly strided sample of at most 4,096 particles: flat cost above that size, exact below it. The stride is taken rather than drawn, so it needs no rng and lands on the same particles in the measured cloud and in the uniform one it is divided by. The two therefore contribute the same pair count and their ratio needs no rescale.</p>
       </div>
     </details>
   </section>
@@ -721,13 +729,76 @@ step += 2 × dt × receiver_weight × weight × B'(potential / norm) / norm × g
 
   <div class="part-head" id="part5">
     <div class="pn">PART V</div>
+    <h2>Driving it</h2>
+    <p class="sub">How something outside the process asks for a world, changes it, and watches a search run.</p>
+  </div>
+
+  <section class="block" id="harness">
+    <h3>Lines in, lines out</h3>
+    <p class="plain lead">One command per line goes in, one result per line comes out. Commands are plain words with named values, so nothing inside has to understand a document format; results are JSON, so a browser does not have to understand anything either. A session holds one world and at most one search, and the loop sleeps on the pipe when there is nothing to advance.</p>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Ask for</th><th>Get back</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">catalog</td><td>every metric with its cost, every criterion, every knob with its range</td></tr>
+          <tr><td class="mono">shape · gene · genome</td><td>a fresh layout, and a picture of the world it made</td></tr>
+          <tr><td class="mono">run · pause · step · speed</td><td>a frame every 40 ms while anything is moving</td></tr>
+          <tr><td class="mono">measure · gates</td><td>a reading laid out by its own plan, with every gate's verdict beside it</td></tr>
+          <tr><td class="mono">search start · stop</td><td>a line per generation, then one per survivor</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <details class="layer analogy">
+      <summary><span class="badge">Analogy</span><span class="stitle">The catalog is the control panel</span><span class="chev">›</span></summary>
+      <div class="body">
+        <p>Most instruments ship with a manual that tells you which dials exist, and the manual goes stale. This one is asked instead: the first thing a page does is request the catalog, and it builds its own dials out of the answer.</p>
+        <p>So a new gauge added inside the machine turns up on the panel without anyone drawing a dial for it, and a gauge that was removed cannot leave a dead switch behind. The panel is a rendering of the machine rather than a picture of it.</p>
+      </div>
+    </details>
+
+    <details class="layer technical">
+      <summary><span class="badge">Technical</span><span class="stitle">Coalescing, pacing, and cancellation</span><span class="chev">›</span></summary>
+      <div class="body">
+        <p>A slider drag arrives as dozens of gene edits a second, and one pair edit costs a fresh density calibration. Edits therefore raise a flag rather than rebuilding, and the rebuild happens once per turn in <code>settle</code>. Anything that reads the world settles first; edits deliberately do not, which is what lets the drag collapse.</p>
+        <p>Speed is a rate, not a batch size: a running world owes <code>speed</code> ticks per 40 ms interval and sleeps out the remainder, so it cannot peg a core to run faster than anyone can watch. A fast-forward is exempt and runs in 200-tick slices, so a hundred-thousand-tick jump still answers commands on the way.</p>
+        <p>A search runs on its own thread and is cancelled through an atomic flag the per-generation watch closure reads, so the tuner needs no idea a frontend exists. A stop lands after the generation in flight, because a batch of rollouts is already out on every core. A panicked search comes back as a <code>failed</code> event, which is why the release profile keeps unwinding panics.</p>
+      </div>
+    </details>
+  </section>
+
+  <section class="block" id="frontend">
+    <h3>A page that owns nothing</h3>
+    <p class="plain lead">The browser keeps no copy of the world. Every control sends a line, every number on screen arrived as an event, and what survives a reload is taste: which panels were open, how bright the material is, what you were watching. A small Python program sits between, spawning the binary and handing its output to every open page.</p>
+
+    <details class="layer analogy">
+      <summary><span class="badge">Analogy</span><span class="stitle">A late viewer catches up, they do not replay</span><span class="chev">›</span></summary>
+      <div class="body">
+        <p>Think of the difference between a livestream and a recording. If your connection stalls during a livestream, the right thing is to skip ahead to now; replaying the buffered minute you missed leaves you permanently behind.</p>
+        <p>That is exactly how frames are treated. A picture that arrives while an older one is still waiting replaces it, because it is a better answer to the same question. Everything that is not a picture is news, and news is kept in order: a survivor is the only copy of itself.</p>
+      </div>
+    </details>
+
+    <details class="layer technical">
+      <summary><span class="badge">Technical</span><span class="stitle">Deposit and march</span><span class="chev">›</span></summary>
+      <div class="body">
+        <p>Each frame of positions is deposited into a periodic density field on the graphics card, one layer at a time, with four wrapped copies per particle so a blob touching a face reappears on the far side. The picture is then raymarched out of that field, so nothing on screen was invented by the renderer.</p>
+        <p>Density is read in multiples of a uniform swarm rather than as an absolute count, which is what lets one threshold mean the same thing at any particle count, any box, and any decimation stride. Past 8,192 points a frame thins by an integer stride and ships the true count alongside, so blend reach still follows the real swarm's spacing.</p>
+        <p>Color says what a neighborhood is made of. Traits sit on a circle, so the deposit carries a cosine and a sine and the wrap at the seam takes care of itself; where the traits in a cell disagree the vector sum is short and the cell reads grey rather than as a confident color it does not have.</p>
+      </div>
+    </details>
+  </section>
+
+  <div class="part-head" id="part6">
+    <div class="pn">PART VI</div>
     <h2>Edges</h2>
     <p class="sub">Where the pieces live, and what is honestly absent.</p>
   </div>
 
   <section class="block" id="modules">
     <h3>Module map</h3>
-    <p class="plain lead">Eight files simulate, one file measures a genome end to end, and the rest measure, judge, and search. Each metric owns its own file and declares what it needs, so adding one does not touch the machinery that runs it.</p>
+    <p class="plain lead">Eight files simulate, one measures a genome end to end, five carry the protocol and the live world, and the rest judge and search. Each metric owns its own file and declares what it needs, so adding one does not touch the machinery that runs it.</p>
 
     <div class="tablewrap">
       <table>
@@ -736,14 +807,18 @@ step += 2 × dt × receiver_weight × weight × B'(potential / norm) / norm × g
           <tr><td class="mono">engine/substrate · trait · kernel</td><td>Positions and the private spatial grid, the anchor basis, Gaussian mixtures with analytic slopes.</td></tr>
           <tr><td class="mono">engine/params</td><td>The two genome halves: layout, decode, uniform draws, per-gene bounds, clamping.</td></tr>
           <tr><td class="mono">engine/matrix · resolve</td><td>The pair-indexed law with measured norms; the density probe and the box it resolves.</td></tr>
-          <tr><td class="mono">engine/lenia · sim</td><td>One step; the authoritative run state.</td></tr>
-          <tr><td class="mono">run</td><td>One genome in, one descriptor out. The only place a simulation is built to be measured.</td></tr>
+          <tr><td class="mono">engine/lenia · sim</td><td>One step, and which machine runs it; the authoritative run state.</td></tr>
+          <tr><td class="mono">engine/gpu</td><td>That same step as a compute shader, with the device and the round trip around it.</td></tr>
           <tr><td class="mono">util</td><td>Deterministic xorshift, Euclidean distance, the non-finite guard.</td></tr>
           <tr><td class="mono">tuner/metrics</td><td>The spec, the plan, the shared blocks, evaluation and folding.</td></tr>
           <tr><td class="mono">tuner/metrics/*</td><td>Ten measurements plus the grid block, one per file.</td></tr>
           <tr><td class="mono">tuner/gate · criterion</td><td>What a search demands; what it wants.</td></tr>
           <tr><td class="mono">tuner/algorithms/evolve</td><td>Lanes, mutation, retention, the generation loop.</td></tr>
           <tr><td class="mono">tuner/driver · specimen</td><td>The assembled search and the per-candidate path; a survivor.</td></tr>
+          <tr><td class="mono">harness/rollout</td><td>One genome in, one descriptor out. The only place a simulation is built to be measured.</td></tr>
+          <tr><td class="mono">harness/mod · protocol</td><td>The session loop and the command dispatch; the frontend boundary in both directions.</td></tr>
+          <tr><td class="mono">harness/catalog · playground · search</td><td>What a frontend may choose from; the live world it drives; a search on its own thread.</td></tr>
+          <tr><td class="mono">ui/server.py · app.js · world.js</td><td>Outside the crate: the relay, the page, and the volume renderer.</td></tr>
         </tbody>
       </table>
     </div>
@@ -758,8 +833,8 @@ step += 2 × dt × receiver_weight × weight × B'(potential / norm) / norm × g
         <thead><tr><th>Absent</th><th>Consequence</th></tr></thead>
         <tbody>
           <tr><td>Trait dynamics</td><td class="no">Traits are frozen for a rollout. No birth, death, or inheritance.</td></tr>
-          <tr><td>Serialization</td><td class="no">Nothing reaches disk, so a population dies with its process and a search cannot be continued.</td></tr>
-          <tr><td>An entry point</td><td class="no">No binary, no command line, and nothing that draws.</td></tr>
+          <tr><td>Serialization</td><td class="no">The crate writes nothing. A run survives as event lines holding genomes and descriptors, so a search cannot be stopped and continued.</td></tr>
+          <tr><td>A view into a running search</td><td class="no">The generation line carries the leader and the median; the population waits until the search is over.</td></tr>
           <tr><td>A second search family</td><td class="no">One algorithm, so no claim that it beats anything is supported here.</td></tr>
           <tr><td>Dimension-general measurement</td><td>The grid pins a search to three axes even though the engine does not.</td></tr>
           <tr><td>A stable integrator</td><td>Explicit Euler; divergence is caught after the fact, not prevented.</td></tr>
@@ -773,7 +848,7 @@ step += 2 × dt × receiver_weight × weight × B'(potential / norm) / norm × g
 
     <div class="callout cold">
       <div class="h">What the tests do and do not establish</div>
-      <p>Twenty tests cover code-level behavior: memberships, seeding, the two neighbor walks agreeing, bit-reproducibility, plan ordering, gate rejection, the once-per-rollout schedule, and that the structure criterion can tell genomes apart. None of them is evidence that the search finds anything worth finding.</p>
+      <p>Three suites cover code-level behavior. Sixty-nine in-process cases check memberships, seeding, the two neighbor walks agreeing, bit-reproducibility, plan ordering, gate rejection, the once-per-rollout schedule, and that the structure criterion can tell genomes apart. Seventy-nine promises drive the real binary over its own protocol and the relay over a socket. A third suite records what the machine costs and that a replay is exact. None of them is evidence that the search finds anything worth finding.</p>
     </div>
   </section>
 
@@ -783,7 +858,7 @@ step += 2 × dt × receiver_weight × weight × B'(potential / norm) / norm × g
 <footer>
   <div class="inner">
     <h3>AXIOM</h3>
-    <p>A library that searches Particle-Lenia interaction laws. The engine simulates a genome, the tuner reduces the result to a bounded descriptor and judges it, and the search breeds what scored well. Nothing here is drawn, stored, or sampled from a trained model.</p>
+    <p>A crate that searches Particle-Lenia interaction laws. The engine simulates a genome, the tuner reduces the result to a bounded descriptor and judges it, the search breeds what scored well, and the harness puts the whole of it behind one line protocol. Nothing here is sampled from a trained model.</p>
     <div class="docs">
       <a href="../README.md">README.md</a>
       <a href="TECHNICAL_SPEC.md">TECHNICAL_SPEC.md</a>

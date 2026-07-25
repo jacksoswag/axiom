@@ -5,8 +5,7 @@
 use super::{Blocks, Metric, Spec};
 
 const WIDTH: usize = 1;
-pub const SPEC: Spec = Spec::of("asymmetry", WIDTH, measure);
-pub const METRIC: Metric = &SPEC;
+pub const METRIC: Metric = &Spec::of("asymmetry", WIDTH, measure);
 
 /// Departure of the directed weight matrix from its own transpose, normalized by the weights, so it
 /// reads the same for a gentle law and a violent one: 0 when every pair pulls exactly as hard as it
@@ -14,6 +13,10 @@ pub const METRIC: Metric = &SPEC;
 pub fn measure(base: &Blocks, _: &[f32]) -> Vec<f32> {
     let matrix = base.rollout.matrix;
     let anchor_count = matrix.anchor_count;
+    // Both sums run over every ordered pair on purpose. The top is how far the matrix sits from its own
+    // transpose, which every pair answers twice because it is asked from both ends; the bottom is the
+    // size of the whole matrix, where each direction is its own term. Halving the loop would halve one
+    // and not the other.
     let (mut difference, mut total) = (0.0f32, 0.0f32);
     for source in 0..anchor_count {
         for destination in 0..anchor_count {

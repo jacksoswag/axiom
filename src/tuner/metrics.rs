@@ -76,7 +76,9 @@ pub fn plan(wanted: &[Metric]) -> Vec<Metric> {
 }
 
 /// One metric's slots in a descriptor this plan produced. A metric the plan skipped, or a descriptor
-/// from a sim that died, both read empty.
+/// from a sim that died, both read empty. The key is the identity here and comparing the handles
+/// would not do: a Spec is a const, so every mention of one is free to be its own copy at its own
+/// address, and two handles on the same metric routinely are.
 pub fn slice<'a>(values: &'a [f32], plan: &[Metric], metric: Metric) -> &'a [f32] {
     let mut start = 0;
     for named in plan {
@@ -84,6 +86,13 @@ pub fn slice<'a>(values: &'a [f32], plan: &[Metric], metric: Metric) -> &'a [f32
         start += named.width; // walk past the metrics ahead of this one
     }
     &[]
+}
+
+/// Whether a plan will ever read the uniform-start pair histogram. Building one is the most expensive
+/// thing a rollout can do before it has taken a single step, and a plan with no pairs metric and no
+/// repair experiment never looks at it. Robustness counts because its signature reads one.
+pub fn wants_baseline(plan: &[Metric]) -> bool {
+    plan.iter().any(|metric| metric.pairs || metric.key == robustness::METRIC.key)
 }
 
 /// A one-slot metric's value, or 0 when missing
@@ -106,25 +115,37 @@ pub struct Blocks<'a> {
     pub substrate: &'a Substrate,
     pub plan: &'a [Metric],
     pub history: &'a [Vec<f32>], // every earlier sample's descriptor, for anything reading change
-    pub motion: Option<&'a Motion>, // absent on the first sample, which has no interval behind it
+    pub motion: Option<Motion>, // absent on the first sample, which has no interval behind it
     pairs: Option<Histogram>,
     fields: Vec<(usize, SpatialField)>, // ascending by side
     barcode: Option<Barcode>,
 }
 impl<'a> Blocks<'a> {
-    /// Every block the plan asks for and nothing else, so no metric builds its own
+    /// Every block the plan asks for and nothing else, so no metric builds its own. The previous
+    /// sample's motion arrives owned rather than borrowed, which is what lets carry() hand its
+    /// buffers straight back instead of copying every coordinate again.
     pub fn build(rollout: &'a Rollout<'a>, substrate: &'a mut Substrate, plan: &'a [Metric],
-        motion: Option<&'a Motion>, history: &'a [Vec<f32>]) -> Blocks<'a>
+        motion: Option<Motion>, history: &'a [Vec<f32>]) -> Blocks<'a>
     {
         // h0 re-buckets the grid at the widest interaction radius; step() re-buckets it again next
         // tick, so the index is scratch either way and this is the only mutation here.
         let barcode = plan.iter().any(|metric| metric.graph)
-            .then(|| topology::h0(substrate, rollout.matrix.max_reach()));
+            .then(|| topology::h0(substrate, rollout.matrix.max_reach));
         let substrate: &'a Substrate = substrate;
         let pairs = plan.iter().any(|metric| metric.pairs).then(|| rdf::build(substrate));
-        let mut sides: Vec<usize> = plan.iter().flat_map(|metric| metric.sides).copied().collect();
-        sides.sort_unstable(); sides.dedup(); // two metrics wanting one resolution cost one grid
-        let fields = sides.into_iter().map(|side| (side, field::build(substrate, side))).collect();
+        // The union of grid resolutions, on the stack: two metrics wanting one resolution cost one
+        // grid, and settling that is a fixed property of the plan asked on every sample of every
+        // candidate. Past MAX_SIDES resolutions this indexes off the end, which is four more than
+        // every metric in the crate asks for between them.
+        const MAX_SIDES: usize = 8;
+        let (mut sides, mut side_count) = ([0usize; MAX_SIDES], 0);
+        for metric in plan {
+            for &side in metric.sides {
+                if !sides[..side_count].contains(&side) { sides[side_count] = side; side_count += 1; }
+            }
+        }
+        sides[..side_count].sort_unstable(); // ascending, which is the order fields are read back in
+        let fields = sides[..side_count].iter().map(|&side| (side, field::build(substrate, side))).collect();
         Blocks { rollout, substrate, plan, history, motion, pairs, fields, barcode }
     }
     /// What the next sample needs from this one, grids included, or None when nothing reads change
@@ -132,7 +153,13 @@ impl<'a> Blocks<'a> {
         if !self.plan.iter().any(|metric| metric.motion) { return None; }
         let field = self.fields.iter().position(|(side, _)| *side == turnover::SIDE)
             .map(|slot| self.fields.swap_remove(slot).1);
-        Some(Motion { positions: self.substrate.positions.clone(), field })
+        // The sample before this one left a positions buffer of exactly this size behind, so refill
+        // it rather than allocate a second copy of every coordinate every time a sample lands.
+        let mut motion = self.motion.take().unwrap_or(Motion { positions: Vec::new(), field: None });
+        motion.positions.clear();
+        motion.positions.extend_from_slice(&self.substrate.positions);
+        motion.field = field;
+        Some(motion)
     }
     /// The same genome on another substrate under another plan, for a metric running an experiment
     pub fn probe<'b>(&self, substrate: &'b mut Substrate, plan: &'b [Metric]) -> Blocks<'b> where 'a: 'b {
@@ -155,7 +182,7 @@ pub struct Motion {
 /// being built, which the plan's ordering has already filled. Before the final sample a Once metric
 /// holds its slots at zero instead of paying for them.
 pub fn evaluate(base: &Blocks, full: bool) -> Vec<f32> {
-    let mut out: Vec<f32> = Vec::new();
+    let mut out: Vec<f32> = Vec::with_capacity(base.plan.iter().map(|metric| metric.width).sum());
     for metric in base.plan {
         let mut values = if metric.reduce == Reduce::Once && !full { Vec::new() }
             else { (metric.measure)(base, &out) };
